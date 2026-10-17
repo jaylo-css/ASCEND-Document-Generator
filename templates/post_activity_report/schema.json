@@ -5,6 +5,10 @@
   "description": "Report submitted to SDAO after an activity: event summary, attachments checklist and signatories.",
   "file": "template.docx",
   "output_name": "Post-Activity Report - {event_name}",
+  "ai_instructions": [
+      "Write \"summary\" as formal past-tense prose for a university office, covering what, where, when and who, using the facts available. Rewrite it whenever new facts arrive.",
+      "For each attached image decide what it is: an event photo goes to \"pictures\" with a one-sentence caption describing what is happening; a scanned invitation, pubmat/poster, or liquidation form/receipt goes to that field; a photo of an attendance sheet, program, or committee list should be transcribed into the matching table (and not added to pictures). Never put pages of an uploaded document in \"pictures\"."
+  ],
   "fields": [
     {
       "id": "organization_name",

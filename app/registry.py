@@ -52,7 +52,7 @@ class Template:
 
     def public(self) -> dict:
         return {k: self.schema.get(k) for k in ("id", "name", "office", "description", "fields", "signatories",
-                                                "removable_signatories")}
+                                                "removable_signatories", "greeting")}
 
 
 def _load(folder: Path) -> Template:
@@ -84,8 +84,11 @@ def get_template(template_id: str) -> Template:
 #               images -> [{"id": upload_id, "caption": str}]
 
 
-def _resolve_default(default: str, config: dict) -> str:
+def _resolve_default(default: str, config: dict, values: dict | None = None) -> str:
+    """"{organization.name}" reads config.json; "{event_name}" reads another field of the form."""
     def lookup(m):
+        if values and isinstance(values.get(m.group(1)), str):
+            return values[m.group(1)]
         cur = config
         for part in m.group(1).split("."):
             cur = cur.get(part, {}) if isinstance(cur, dict) else {}
@@ -133,7 +136,7 @@ def resolved_values(tpl: Template, state: dict, config: dict) -> dict:
     for f in tpl.fields:
         v = normalize_value(f, raw.get(f["id"]))
         if v is None and f.get("default") and f["id"] not in raw:
-            v = normalize_value(f, _resolve_default(f["default"], config))
+            v = normalize_value(f, _resolve_default(f["default"], config, out))
         out[f["id"]] = v
     return out
 

@@ -6,7 +6,12 @@ field of the form, asks for anything missing (or lets you skip it), and the
 right side shows the filled document live. Click anything on the document to
 edit it, then download it as DOCX or PDF. No login.
 
-First form included: **SDAO Post-Activity Report** (from `source_forms/POST-EVENT-REPORT.docx`).
+Forms included:
+
+- **SDAO Post-Activity Report** (from `source_forms/POST-EVENT-REPORT.docx`)
+- **ASCEnD Activity Proposal** (from `source_forms/ACTIVITY-PROPOSAL.docx`): the form's own styled
+  tables (Activity Overview, Budget, Programme Flow) are filled row by row and the budget TOTAL
+  is added up automatically.
 
 ![layout](docs/screenshot.png)
 
@@ -114,17 +119,25 @@ Each form is a folder in `templates/`; no code changes are needed.
    - `{{sig:role}}` for a signatory name (roles come from `config.json`)
    - `{{annex:field_id}}` next to an attachment in a checklist
    - `{{#annexes}}` on its own line where annex pages should start
+   - `{{title:role}}` for a signatory's position (editable per document)
+   - `{{rows:field_id}}` in the first cell of a row of the form's own table: that row is
+     repeated once per row of the table field, keeping the table's colors and borders
+   - `{{total:field_id}}` for the sum of a table field's `total_column` (with `currency`)
 3. Write `templates/<form_id>/schema.json` listing the fields. Copy
    `templates/post_activity_report/schema.json` and edit it. Field types:
    `text`, `longtext`, `table` (with `columns`, optional `numbered`), `images`.
    Useful keys: `required`, `attachment` + `annex_title`, `hint` (tells the AI
-   what to write), `default` (e.g. `"{organization.name}"`), `in_document: false`
-   for facts the AI should collect but not print.
+   what to write), `default` (e.g. `"{organization.name}"`, or another field such as
+   `"{event_name}"`), `in_document: false` for facts the AI should collect but not print.
+   Form-level keys: `ai_instructions` (rules for the AI that only apply to this form),
+   `greeting` (the assistant's first message), `signatories` (role -> position label).
 4. Restart the server. The form appears in the "Form" dropdown.
 
-The Post-Activity template was produced by `tools/build_post_activity_template.py`,
-which edits the original SDAO file so its layout, header and fonts stay
-untouched. Re-run it if SDAO updates the form.
+The templates are produced by `tools/build_post_activity_template.py` and
+`tools/build_activity_proposal_template.py`, which edit the original files so their
+layout, header/footer art and fonts stay untouched. Re-run one if its form is updated.
+The preview shows the header/footer art and the form's tables as in Word, but as one
+long page; the downloaded DOCX/PDF has the real page breaks.
 
 ## Adding another AI provider
 

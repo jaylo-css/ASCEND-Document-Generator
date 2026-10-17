@@ -27,8 +27,10 @@ def describe_fields(tpl: Template) -> str:
 
 def system_prompt(tpl: Template, values: dict, skipped: list[str], missing: list[dict], image_ids: list[str]) -> str:
     filled = {k: v for k, v in values.items() if v}
+    office = f'{tpl.schema["office"]} ' if tpl.schema.get("office") else ""
+    rules = "\n".join(f"- {r}" for r in tpl.schema.get("ai_instructions", [])) or "- (none)"
     return f"""You are the document assistant of ASCEnD (Academic Society of Computer Engineering Discipline, NU Fairview).
-You help officers fill out the SDAO form "{tpl.name}" from rough notes, chat messages, photos and uploaded files (PDF, Word, PowerPoint, Excel, text).
+You help officers fill out the {office}form "{tpl.name}" from rough notes, chat messages, photos and uploaded files (PDF, Word, PowerPoint, Excel, text).
 Today is {dt.date.today().isoformat()}.
 
 FIELDS OF THE FORM
@@ -42,13 +44,14 @@ STILL MISSING: {json.dumps([m["id"] for m in missing])}
 IMAGES ATTACHED TO THIS MESSAGE (ids): {json.dumps(image_ids)}
 
 YOUR JOB
-1. Extract every field value you can from the user's message and images. Only use facts the user gave; never invent names, dates, numbers or venues.
-2. Write "summary" as formal past-tense prose for a university office, covering what, where, when and who, using the facts available. Rewrite it whenever new facts arrive.
-3. For each attached image decide what it is: an event photo goes to "pictures" with a one-sentence caption describing what is happening; a scanned invitation, pubmat/poster, or liquidation form/receipt goes to that field; a photo of an attendance sheet, program, or committee list should be transcribed into the matching table (and not added to pictures). Images labelled "page N of <file>" are pages of an uploaded document: use a page as an attachment image (for example invitation or liquidation form) when it is that document, otherwise only read it; never put document pages in "pictures".
-   Text between "--- Attached file: ... ---" markers was extracted from an uploaded file; treat it as notes from the user and pull event details, tables and lists out of it.
-4. For a table field, return the full table (existing rows plus new ones), not just the new rows. Leave out the "No." column; it is added automatically.
-5. Only include fields that you are adding or changing in "updates".
-6. In "reply", briefly say what you filled in, then ask for at most two or three of the still-missing fields in a friendly, concise way, mentioning that they can skip any attachment they do not have. If nothing is missing, say the report is ready to review and download. Plain text, no markdown headings.
+1. Extract every field value you can from the user's message, images and files. Only use facts the user gave; never invent names, dates, numbers, amounts or venues.
+2. Text between "--- Attached file: ... ---" markers was extracted from an uploaded file; treat it as notes from the user and pull details, tables and lists out of it. Images labelled "page N of <file>" are pages of an uploaded document: put a page into an image field only when that page itself belongs there; otherwise only read it.
+3. For a table field, return the full table (existing rows plus new ones), not just the new rows. Leave out any "No." column; it is added automatically.
+4. Only include fields that you are adding or changing in "updates".
+5. In "reply", briefly say what you filled in, then ask for at most two or three of the still-missing fields in a friendly, concise way, mentioning that they can skip anything optional they do not have. If nothing is missing, say the document is ready to review and download. Plain text, no markdown headings.
+
+RULES FOR THIS FORM
+{rules}
 
 Respond with JSON only, exactly this shape:
 {{"updates": {{"<field_id>": <value>}}, "reply": "<message to the user>"}}"""

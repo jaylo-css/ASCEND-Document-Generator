@@ -1,6 +1,7 @@
 """Run with:  python -m pytest -q   (from the project root)"""
 import io
 import json
+import re
 
 import httpx
 import pytest
@@ -211,3 +212,55 @@ def test_only_removable_signatories_can_be_removed(client):
     state = {"sig_removed": ["dean"]}
     r = client.post("/api/export/docx", json={"template_id": "post_activity_report", "state": state})
     assert "Dr. Corazon B. Rebong, PCpE" in doc_text(r.content)
+
+
+PROPOSAL = {"values": {
+    "event_name": "Arduino Basics Workshop", "event_date": "October 24, 2026",
+    "introduction": "Para one.\nPara two.",
+    "activity_overview": [["Talk", "Learn", "Lecture", "Projector", "Juan"], ["Lab", "Build", "Hands-on", "Kits", "Ana"]],
+    "budget_items": [["Snacks", "45", "₱50.00", "₱2,250.00"], ["Kits", "10", "₱300.00", "₱3,000.00"]],
+    "program_flow": [["Oct 24, 1:00 PM", "Room 401", "Registration", "Secretariat"]]},
+    "signatories": {"president": "Maria Reyes"}}
+
+
+def test_proposal_fills_form_tables_in_place(client):
+    r = client.post("/api/export/docx", json={"template_id": "activity_proposal", "state": PROPOSAL})
+    assert r.status_code == 200
+    d = Document(io.BytesIO(r.content))
+    text = doc_text(r.content)
+    assert "{{" not in text
+    overview, budget, flow, approval = d.tables[1], d.tables[2], d.tables[3], d.tables[4]
+    assert [c.text for c in overview.rows[2].cells] == ["Lab", "Build", "Hands-on", "Kits", "Ana"]
+    assert len(overview.rows) == 3 and len(budget.rows) == 4  # header + rows (+ TOTAL)
+    assert budget.rows[-1].cells[-1].text == "₱5,250.00"
+    assert flow.rows[0].cells[0].text == "TITLE: Arduino Basics Workshop"  # defaults to the event title
+    signers = approval.rows[1].cells
+    assert "Maria Reyes\nPresident" in signers[0].text
+    assert "Engr. Jhamil G. Gutierrez, MSCpE\nRSO Adviser" in signers[1].text
+    # the yellow header styling of the form's table is kept
+    assert 'w:fill="FFC000"' in overview.rows[0].cells[0]._tc.xml
+
+
+def test_proposal_empty_table_keeps_one_blank_row(client):
+    r = client.post("/api/export/docx", json={"template_id": "activity_proposal", "state": {}})
+    d = Document(io.BytesIO(r.content))
+    assert len(d.tables[1].rows) == 2 and not any(c.text for c in d.tables[1].rows[1].cells)
+    assert d.tables[2].rows[-1].cells[-1].text == ""  # no amounts, no total
+
+
+def test_proposal_preview_has_form_art_and_editable_rows(client):
+    html = client.post("/api/preview", json={"template_id": "activity_proposal", "state": PROPOSAL}).json()["html"]
+    assert html.count('class="dfloat') == 5 and 'class="dpic crop"' in html  # header/footer art, cropped logo
+    assert 'data-table="budget_items"' in html and 'data-field="budget_items" data-row="1" data-col="3"' in html
+    assert "₱5,250.00" in html and "{{" not in html
+    url = re.search(r'/api/templates/activity_proposal/media/[\w.-]+', html).group(0)
+    assert client.get(url).headers["content-type"] == "image/png"
+    assert client.get("/api/templates/activity_proposal/media/..%2Fdocument.xml").status_code in (400, 404)
+
+
+def test_prompt_uses_each_forms_own_rules():
+    from app.ai.prompt import system_prompt
+    proposal = system_prompt(get_template("activity_proposal"), {}, [], [], [])
+    report = system_prompt(get_template("post_activity_report"), {}, [], [], [])
+    assert "future tense" in proposal and '"summary"' not in proposal
+    assert 'Write "summary"' in report and "future tense" not in report

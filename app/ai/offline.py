@@ -26,6 +26,15 @@ SYNONYMS = {
     "committee_members": ["committee", "committee members", "committees", "organizers", "officers in charge"],
     "attendance": ["attendance", "attendees", "list of attendance", "participants", "attendance list"],
     "evaluation": ["evaluation", "evaluation results", "feedback", "eval"],
+    "introduction": ["introduction", "background", "rationale"],
+    "objectives": ["objectives", "objective", "general objectives", "goals"],
+    "core_values": ["core values", "nu core values"],
+    "sdgs": ["sdg", "sdgs", "sustainable development goals", "target sdg", "target sdgs"],
+    "activity_overview": ["activity overview", "activities", "overview"],
+    "budget_items": ["budget", "budget breakdown", "budget items", "expenses"],
+    "budget_source": ["source of budget", "budget source", "source of funds", "fund source"],
+    "remaining_budget": ["remaining budget"],
+    "event_details": ["event details", "decoration", "decorations", "floor plan"],
 }
 TIME_ROW = re.compile(r"^\s*(\d{1,2}(?::\d{2})?\s*(?:[AaPp]\.?[Mm]\.?)?(?:\s*[-–to]+\s*\d{1,2}(?::\d{2})?\s*(?:[AaPp]\.?[Mm]\.?)?)?)\s*[-–—|:]\s*(.+)$")
 SPLIT = re.compile(r"\s+[-–—|]\s+|\s*\|\s*|\t|,\s*")
@@ -90,15 +99,16 @@ class OfflineProvider(AIProvider):
         for fid, rows in tables.items():
             updates[fid] = (values.get(fid) or []) + rows
 
-        if loose and "summary" not in updates and tpl.field("summary"):
+        target = tpl.schema.get("loose_text_field", "summary")
+        if loose and target not in updates and tpl.field(target):
             facts = {**values, **updates}
             lead = []
-            if facts.get("event_name"):
+            if target == "summary" and facts.get("event_name"):
                 when = f" on {facts['event_date']}" if facts.get("event_date") else ""
                 where = f" at {facts['venue']}" if facts.get("venue") else ""
                 org = facts.get("organization_name") or "The organization"
                 lead.append(f"{org} conducted {facts['event_name']}{when}{where}.")
-            updates["summary"] = " ".join(lead + loose)
+            updates[target] = " ".join(lead + loose)
 
         photos = [i for i in images if not i.source]  # skip pages rendered from uploaded documents
         if photos and tpl.field("pictures"):

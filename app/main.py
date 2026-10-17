@@ -12,6 +12,7 @@ import secrets
 import subprocess
 import tempfile
 import uuid
+import zipfile
 from urllib.parse import quote
 from pathlib import Path
 
@@ -102,6 +103,19 @@ def templates():
 def template_detail(tid: str):
     cfg = load_config()
     return {**_template(tid).public(), "config_signatories": cfg.get("signatories", {})}
+
+
+@app.get("/api/templates/{tid}/media/{name}")
+def template_media(tid: str, name: str):
+    if not re.fullmatch(r"[\w.-]+", name):
+        raise HTTPException(400)
+    with zipfile.ZipFile(_template(tid).path) as z:
+        try:
+            data = z.read(f"word/media/{name}")
+        except KeyError:
+            raise HTTPException(404)
+    return Response(data, media_type=mimetypes.guess_type(name)[0] or "application/octet-stream",
+                    headers={"Cache-Control": "public, max-age=3600"})
 
 
 @app.post("/api/preview")

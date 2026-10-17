@@ -1,0 +1,134 @@
+{
+  "id": "activity_proposal",
+  "name": "Activity Proposal",
+  "office": "ASCEnD",
+  "description": "Proposal for an upcoming activity: background, objectives, NU core values, SDGs, activity overview, budget, program flow and approval.",
+  "file": "template.docx",
+  "output_name": "Activity Proposal - {event_name}",
+  "greeting": "Hi! Let's write the Activity Proposal. Tell me about the planned activity: what it is, when and where it will happen, who it is for, the program, the budget and who is in charge. You can also upload a draft, concept paper, program or budget sheet (PDF, Word, PowerPoint or Excel).\n\nYou can also click any part of the document on the right to edit it directly.",
+  "loose_text_field": "introduction",
+  "ai_instructions": [
+    "This proposal is for an activity that has not happened yet: write in formal future tense (\"The activity will ...\") suitable for a university office.",
+    "You may write the explanatory prose of \"introduction\", \"objectives\", \"core_values\" and \"sdgs\" yourself from what the user says about the activity, but never invent facts: names, dates, venues, amounts or numbers of participants.",
+    "\"objectives\": one objective per line, each starting with \"To ...\".",
+    "\"core_values\": only the NU core values the user names, each followed by one or two sentences on how the activity promotes it. If the user has not named any, ask which NU core values apply instead of guessing.",
+    "\"sdgs\": use the official UN goal number and name (for example \"SDG 4: Quality Education\"), each followed by one or two sentences on how the activity addresses it. You may suggest goals that clearly fit; if you do, say so in the reply so the user can confirm.",
+    "\"activity_overview\": one row per part of the activity (for example a talk, a workshop, a contest).",
+    "\"budget_items\": write money as ₱1,500.00. Amount = quantity × unit price when both are known. The TOTAL row is calculated automatically, so do not add it as a row.",
+    "\"program_flow\": one row per program segment; the Time and Date column holds values like \"Oct 24, 2026, 1:00–1:30 PM\".",
+    "An uploaded floor plan, venue layout or decoration peg goes to \"event_layout\" with a short caption."
+  ],
+  "fields": [
+    {
+      "id": "event_name",
+      "label": "Title of Event/Activities",
+      "type": "text",
+      "required": true,
+      "hint": "Official title of the activity."
+    },
+    {
+      "id": "organization_name",
+      "label": "Name of Organization",
+      "type": "text",
+      "required": true,
+      "default": "{organization.name}"
+    },
+    {
+      "id": "event_date",
+      "label": "Date of Event/Activities",
+      "type": "text",
+      "required": true,
+      "hint": "Date (and time, if known) of the activity, e.g. October 24, 2026."
+    },
+    {
+      "id": "introduction",
+      "label": "Introduction",
+      "type": "longtext",
+      "required": true,
+      "hint": "One or two formal paragraphs: brief background and rationale for the proposed activity (why it is needed, who it is for, what it will do)."
+    },
+    {
+      "id": "objectives",
+      "label": "General Objectives",
+      "type": "longtext",
+      "required": true,
+      "hint": "Three to five general objectives, one per line, each starting with \"To ...\"."
+    },
+    {
+      "id": "core_values",
+      "label": "NU Core Values",
+      "type": "longtext",
+      "required": true,
+      "hint": "The NU core values the activity promotes, each with a brief explanation of how the activity aligns with it."
+    },
+    {
+      "id": "sdgs",
+      "label": "Target Sustainable Development Goals (SDG)",
+      "type": "longtext",
+      "required": true,
+      "hint": "The SDGs the activity addresses (number and official name), each with a brief explanation of the alignment."
+    },
+    {
+      "id": "activity_overview",
+      "label": "Activity Overview",
+      "type": "table",
+      "required": true,
+      "columns": ["Activities", "Objectives", "Mechanics", "Materials", "Person-in-Charge"],
+      "hint": "One row per part of the activity: what it is, its objective, how it will be done, materials needed, and who is in charge."
+    },
+    {
+      "id": "budget_source",
+      "label": "Source of Budget",
+      "type": "text",
+      "required": true,
+      "hint": "Where the money comes from, e.g. organization funds, sponsorship, registration fees."
+    },
+    {
+      "id": "remaining_budget",
+      "label": "Remaining Budget",
+      "type": "text",
+      "hint": "Organization funds left after this activity, e.g. ₱12,000.00."
+    },
+    {
+      "id": "budget_items",
+      "label": "Budget Breakdown",
+      "type": "table",
+      "required": true,
+      "columns": ["Item", "Quantity", "Unit Price", "Amount"],
+      "total_column": "Amount",
+      "currency": "₱",
+      "hint": "Each expense with quantity, unit price and amount. The total is added up automatically."
+    },
+    {
+      "id": "program_title",
+      "label": "Programme Flow Title",
+      "type": "text",
+      "default": "{event_name}",
+      "hint": "Title shown above the program flow; defaults to the event title."
+    },
+    {
+      "id": "program_flow",
+      "label": "Programme Flow",
+      "type": "table",
+      "required": true,
+      "columns": ["Time and Date", "Venue", "Activity", "Person-in-Charge"],
+      "hint": "The schedule: time and date, venue, activity and person in charge for each segment."
+    },
+    {
+      "id": "event_details",
+      "label": "Event Details (Decoration, Floor Plan, Etc.)",
+      "type": "longtext",
+      "hint": "Decoration, venue set-up, floor plan, logistics and other details."
+    },
+    {
+      "id": "event_layout",
+      "label": "Floor Plan / Layout Images",
+      "type": "images",
+      "hint": "Floor plan, venue layout or decoration peg images."
+    }
+  ],
+  "signatories": {
+    "president": "President",
+    "adviser_1": "RSO Adviser"
+  }
+}

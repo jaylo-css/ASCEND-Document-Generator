@@ -121,7 +121,7 @@ $("#key-form").addEventListener("submit", (e) => {
 function greet() {
   S.chat.push({
     role: "assistant",
-    text: `Hi! Let's fill out the ${S.schema.name}. Paste whatever you have about the event: notes, the program, a list of attendees, photos (event pictures, a signed attendance sheet, the pubmat), or files like a PDF, Word document, slides or spreadsheet. I'll put everything in the right place and ask for anything missing.\n\nYou can also click any part of the document on the right to edit it directly.`,
+    text: S.schema.greeting || `Hi! Let's fill out the ${S.schema.name}. Paste whatever you have about the event: notes, the program, a list of attendees, photos (event pictures, a signed attendance sheet, the pubmat), or files like a PDF, Word document, slides or spreadsheet. I'll put everything in the right place and ask for anything missing.\n\nYou can also click any part of the document on the right to edit it directly.`,
   });
 }
 

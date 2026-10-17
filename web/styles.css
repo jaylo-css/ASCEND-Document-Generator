@@ -208,6 +208,28 @@ button.ghost:hover { background: var(--navy-soft); }
   font-family: var(--docfont); font-size: 14.67px; line-height: 1.15;
 }
 .page .dhead { position: absolute; left: 96px; right: 96px; }
+/* header/footer art (banners, logos, watermark) of forms that have it */
+.page.has-floats { overflow: hidden; isolation: isolate; }
+.page .dfloat { position: absolute; pointer-events: none; user-select: none; }
+.page .dfloat.behind { z-index: -1; }
+.page .dpic { vertical-align: middle; max-width: 100%; }
+.page .crop { display: inline-block; position: relative; overflow: hidden; }
+.page .crop img { position: absolute; max-width: none; }
+.page .dfloat.crop { position: absolute; }
+/* the form's own tables (widths, shading and merges come from the template) */
+.wtable { border-collapse: collapse; table-layout: fixed; margin-bottom: 0; }
+.wtable.grid > * > tr > td:not(.row-x) { border: 1px solid #000; }
+.wtable td { padding: 0 7px; }
+.wtable td.wcell { overflow-wrap: anywhere; }
+.wtable td.wcell { white-space: pre-wrap; outline: none; min-height: 1.3em; height: 1.4em; }
+.wtable td.wcell:hover { background: rgba(224,173,43,.10); }
+.wtable td.wcell:focus { background: rgba(224,173,43,.18); }
+.wtable .row-x { border: 0; width: 28px; padding: 0 0 0 4px; background: transparent; }
+.wtable .row-x button {
+  border: 0; background: transparent; color: #9aa2b3; font-size: 16px; line-height: 1; padding: 2px 4px;
+}
+.wtable .row-x button:hover { color: var(--danger); }
+.calc { font-weight: 700; }
 .page p.dp { position: relative; }
 .page .num { display: inline-block; }
 .page .tab { display: inline-block; }
