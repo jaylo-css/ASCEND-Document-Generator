@@ -1,12 +1,17 @@
 # Render blueprint: https://render.com/docs/blueprint-spec
-# In Render: New > Blueprint > pick this repo. It asks for the two secret values below.
+# In Render: New > Blueprint > pick this repo. It asks for the secret values below.
 services:
   - type: web
     name: ascend-docgen
     runtime: docker
     plan: free
+    region: singapore          # next to the Firestore database (asia-southeast1)
     healthCheckPath: /api/health
     envVars:
+      # the Firebase service-account key: paste the whole contents of the .json file.
+      # Events and uploads are kept in Firestore, so they survive the free plan's restarts.
+      - key: FIREBASE_CREDENTIALS
+        sync: false
       # optional: leave empty if each user enters their own key in the app
       - key: GEMINI_API_KEY
         sync: false

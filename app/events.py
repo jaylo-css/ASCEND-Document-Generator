@@ -12,19 +12,19 @@ Notes and files are the event's context: the assistant reads them when filling a
 event, and facts it learns in a chat are added back as notes (source "assistant"). Documents hold
 each form's draft so it can be reopened later or by another officer.
 
-Stored in SQLite: data/ascend.db by default, ASCEND_DB to change it.
+Stored by app/storage.py: SQLite locally (data/ascend.db, ASCEND_DB to change), or Cloud Firestore
+when FIREBASE_CREDENTIALS is set.
 """
 from __future__ import annotations
 
 import datetime as dt
-import json
 import os
-import sqlite3
 import threading
 import uuid
 from pathlib import Path
 
 from . import files as docfiles
+from . import storage
 from .registry import ROOT
 
 DB_PATH = Path(os.environ.get("ASCEND_DB", ROOT / "data" / "ascend.db"))
@@ -37,35 +37,24 @@ def _now() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
 
 
-def _connect() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(DB_PATH)
-    con.execute("CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at TEXT NOT NULL)")
-    return con
-
-
-def _save(con, event: dict):
-    event["updated_at"] = _now()
-    con.execute("INSERT OR REPLACE INTO events (id, data, updated_at) VALUES (?, ?, ?)",
-                (event["id"], json.dumps(event, ensure_ascii=False), event["updated_at"]))
+def _store():
+    return storage.events_backend(DB_PATH)
 
 
 def summary(event: dict) -> dict:
     return {"id": event["id"], "name": event["name"], "updated_at": event["updated_at"],
             "notes": len(event.get("notes", [])), "files": len(event.get("files", [])),
-            "documents": sorted(event.get("documents", {}))}
+            "documents": sorted(event.get("documents") or {})}
 
 
 def list_events() -> list[dict]:
-    with _lock, _connect() as con:
-        rows = con.execute("SELECT data FROM events ORDER BY updated_at DESC").fetchall()
-    return [summary(json.loads(r[0])) for r in rows]
+    with _lock:
+        return [summary(e) for e in _store().list()]
 
 
 def get_event(eid: str) -> dict | None:
-    with _lock, _connect() as con:
-        row = con.execute("SELECT data FROM events WHERE id = ?", (eid,)).fetchone()
-    return json.loads(row[0]) if row else None
+    with _lock:
+        return _store().get(eid)
 
 
 def create_event(name: str, notes: str = "") -> dict:
@@ -73,26 +62,33 @@ def create_event(name: str, notes: str = "") -> dict:
              "notes": [], "files": [], "documents": {}}
     if notes.strip():
         event["notes"].append(new_note(notes))
-    with _lock, _connect() as con:
-        _save(con, event)
+    with _lock:
+        _store().put(event)
     return event
 
 
 def update_event(eid: str, change) -> dict | None:
-    """Read-modify-write one event under the lock; change(event) edits it in place."""
-    with _lock, _connect() as con:
-        row = con.execute("SELECT data FROM events WHERE id = ?", (eid,)).fetchone()
-        if not row:
+    """Read-modify-write an event's name, notes or files under the lock; change(event) edits it in place.
+    Drafts are saved with save_document()."""
+    with _lock:
+        store = _store()
+        event = store.get(eid)
+        if event is None:
             return None
-        event = json.loads(row[0])
         change(event)
-        _save(con, event)
+        event["updated_at"] = _now()
+        store.put(event)
     return event
 
 
+def save_document(eid: str, tid: str, doc: dict) -> bool:
+    with _lock:
+        return _store().put_document(eid, tid, doc, _now())
+
+
 def delete_event(eid: str) -> bool:
-    with _lock, _connect() as con:
-        return con.execute("DELETE FROM events WHERE id = ?", (eid,)).rowcount > 0
+    with _lock:
+        return _store().delete(eid)
 
 
 def new_note(text: str, source: str = "user") -> dict:

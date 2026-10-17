@@ -5,6 +5,7 @@ Run:  uvicorn app.main:app --reload     (from the project root)
 from __future__ import annotations
 
 import base64
+import io
 import mimetypes
 import os
 import re
@@ -21,7 +22,7 @@ from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import engine, events, files
+from . import engine, events, files, storage
 from .ai.base import ImageInput, ProviderError, get_provider
 from .registry import ROOT, get_template, list_templates, load_config, merge_updates, missing_fields, resolved_values
 
@@ -29,6 +30,27 @@ UPLOAD_DIR = Path(os.environ.get("ASCEND_UPLOAD_DIR", ROOT / "data" / "uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 MAX_UPLOAD = 25 * 1024 * 1024
 ALLOWED = {"image/png", "image/jpeg", "image/gif", "image/bmp", "image/webp"}
+MAX_SIDE = 2000  # px: longest side of stored photos (plenty for a printed report)
+
+
+def _shrink(data: bytes, mime: str) -> tuple[bytes, str]:
+    """Scale large photos down and turn them upright (phones store the rotation in EXIF, which Word
+    ignores). Small images and GIFs are kept as they are."""
+    if mime == "image/gif" or len(data) < 1_000_000:
+        return data, mime
+    try:
+        from PIL import Image, ImageOps
+        im = ImageOps.exif_transpose(Image.open(io.BytesIO(data)))
+        im.thumbnail((MAX_SIDE, MAX_SIDE))
+        buf = io.BytesIO()
+        if mime == "image/png" and im.mode in ("RGBA", "LA", "P"):
+            im.save(buf, "PNG", optimize=True)
+        else:
+            im.convert("RGB").save(buf, "JPEG", quality=85, optimize=True)
+            mime = "image/jpeg"
+        return (buf.getvalue(), mime) if buf.tell() < len(data) else (data, mime)
+    except Exception:  # unreadable image: store it unchanged
+        return data, mime
 
 app = FastAPI(title="ASCEnD Document Generator")
 
@@ -111,7 +133,8 @@ def health():
         provider = get_provider().name
     except Exception as e:  # misconfigured provider
         provider = f"error: {e}"
-    return {"ok": True, "ai_provider": provider, "pdf_export": bool(_soffice()), "protected": bool(PASSWORD)}
+    return {"ok": True, "ai_provider": provider, "pdf_export": bool(_soffice()), "protected": bool(PASSWORD),
+            "storage": storage.backend_name()}
 
 
 @app.get("/api/templates")
@@ -293,7 +316,8 @@ def save_document(eid: str, tid: str, body: DocumentIn):
     """Save one form's draft (values, signatories, chat) inside the event."""
     _template(tid)
     doc = {"state": body.state.model_dump(), "chat": body.chat[-60:], "updated_at": events._now()}
-    _changed(eid, lambda e: e["documents"].__setitem__(tid, doc))
+    if not events.save_document(_event(eid)["id"], tid, doc):
+        raise HTTPException(404, "Event not found")
     return {"ok": True}
 
 
@@ -314,12 +338,18 @@ async def upload(uploads: list[UploadFile] = File(..., alias="files")):
                 rec = files.save_document(data, name, UPLOAD_DIR)
             except files.FileError as e:
                 raise HTTPException(422, f"{name}: {e}")
+            storage.backup(rec["id"], sorted(files.docs_dir(UPLOAD_DIR).glob(rec["id"] + ".*")), UPLOAD_DIR)
+            for p in rec["pages"]:
+                storage.backup(p, list(UPLOAD_DIR.glob(p + ".*")), UPLOAD_DIR)
             out.append({**rec, "kind": "document",
                         "pages": [{"id": p, "url": f"/api/uploads/{p}"} for p in rec["pages"]]})
             continue
+        data, mime = _shrink(data, mime)
         uid = uuid.uuid4().hex[:16]
-        ext = mimetypes.guess_extension(mime) or ".png"
-        (UPLOAD_DIR / f"{uid}{ext}").write_bytes(data)
+        ext = {"image/jpeg": ".jpg"}.get(mime) or mimetypes.guess_extension(mime) or ".png"
+        path = UPLOAD_DIR / f"{uid}{ext}"
+        path.write_bytes(data)
+        storage.backup(uid, [path], UPLOAD_DIR)
         out.append({"id": uid, "name": name, "kind": "image", "url": f"/api/uploads/{uid}"})
     return out
 
@@ -329,6 +359,8 @@ def get_upload(uid: str):
     if not re.fullmatch(r"[\w-]+", uid):
         raise HTTPException(400)
     hits = list(UPLOAD_DIR.glob(uid + ".*"))
+    if not hits and storage.restore(uid, UPLOAD_DIR):
+        hits = list(UPLOAD_DIR.glob(uid + ".*"))
     if not hits:
         raise HTTPException(404)
     return FileResponse(hits[0])

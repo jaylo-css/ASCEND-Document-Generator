@@ -32,6 +32,7 @@ Maria Reyes, BSCpE 1
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(main, "UPLOAD_DIR", tmp_path)
     monkeypatch.setattr(main.events, "DB_PATH", tmp_path / "events.db")
+    monkeypatch.delenv("FIREBASE_CREDENTIALS", raising=False)  # tests never touch the real Firestore
     monkeypatch.setenv("AI_PROVIDER", "offline")
     return TestClient(main.app)
 
@@ -118,7 +119,7 @@ def test_pdf_upload_renders_pages_but_not_into_pictures(client):
     pdf = open("examples/Post-Activity Report - Arduino Basics Workshop 2026.pdf", "rb").read()
     rec = client.post("/api/uploads", files=[("files", ("report.pdf", pdf, "application/pdf"))]).json()[0]
     assert rec["pages"] and rec["chars"] > 0
-    assert client.get(rec["pages"][0]["url"]).headers["content-type"] == "image/png"
+    assert client.get(rec["pages"][0]["url"]).headers["content-type"] == "image/jpeg"
     r = client.post("/api/chat", json={"template_id": "post_activity_report", "file_ids": [rec["id"]]})
     assert "pictures" not in r.json()["state"]["values"]
 
@@ -346,3 +347,15 @@ def test_no_duplicate_or_echoed_facts(client, monkeypatch):
     body = {"template_id": "post_activity_report", "event_id": eid, "message": "x"}
     assert client.post("/api/chat", json={**body, "generate": True}, headers={"X-Gemini-Key": "k"}).json()["remembered"] == []
     assert client.post("/api/chat", json=body, headers={"X-Gemini-Key": "k"}).json()["remembered"] == ["38 students attended."]
+
+
+def test_large_photos_are_shrunk_and_turned_upright(client):
+    from PIL import Image
+    im = Image.effect_noise((4000, 3000), 60).convert("RGB")  # noisy, so it stays large as a file
+    exif = im.getexif()
+    exif[0x0112] = 6  # "rotate 90°", as phones write it
+    buf = io.BytesIO()
+    im.save(buf, "JPEG", quality=95, exif=exif)
+    up = client.post("/api/uploads", files=[("files", ("photo.jpg", buf.getvalue(), "image/jpeg"))]).json()[0]
+    got = Image.open(io.BytesIO(client.get(up["url"]).content))
+    assert got.size == (1500, 2000)  # upright (portrait) and at most 2000 px

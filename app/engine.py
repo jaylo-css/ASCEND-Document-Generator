@@ -95,6 +95,10 @@ class Context:
         if not re.fullmatch(r"[\w-]+", upload_id or ""):
             return None
         hits = list(self.upload_dir.glob(upload_id + ".*"))
+        if not hits:
+            from . import storage
+            if storage.restore(upload_id, self.upload_dir):  # the disk was wiped: fetch it back
+                hits = list(self.upload_dir.glob(upload_id + ".*"))
         return hits[0] if hits else None
 
 

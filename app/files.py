@@ -71,9 +71,9 @@ def _pdf_pages(data: bytes, upload_dir: Path) -> list[str]:
     pdf = pdfium.PdfDocument(data)
     try:
         for i in range(min(len(pdf), MAX_PDF_PAGES)):
-            img = pdf[i].render(scale=150 / 72).to_pil()
+            img = pdf[i].render(scale=150 / 72).to_pil().convert("RGB")
             uid = uuid.uuid4().hex[:16]
-            img.save(upload_dir / f"{uid}.png", optimize=True)
+            img.save(upload_dir / f"{uid}.jpg", quality=80, optimize=True)  # a fraction of a PNG's size
             ids.append(uid)
     finally:
         pdf.close()
@@ -156,8 +156,11 @@ def save_document(data: bytes, filename: str, upload_dir: Path) -> dict:
 
 
 def load_document(uid: str, upload_dir: Path) -> tuple[dict, str] | None:
+    from . import storage
     d = docs_dir(upload_dir)
     meta, txt = d / f"{uid}.json", d / f"{uid}.txt"
+    if not meta.exists() and not storage.restore(uid, upload_dir):
+        return None
     if not meta.exists():
         return None
     return json.loads(meta.read_text(encoding="utf-8")), txt.read_text(encoding="utf-8") if txt.exists() else ""

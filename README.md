@@ -28,8 +28,22 @@ speakers, ratings...) are added to the event automatically (marked "AI" under Ev
 "Quick draft (no event)" works as before and stays in your browser only.
 
 Events are shared by everyone who can open the app (this tool is for ASCEnD only; set
-`ASCEND_PASSWORD` when it is online). They are stored in SQLite at `data/ascend.db`
-(`ASCEND_DB` to change), next to the uploaded files in `data/uploads/`.
+`ASCEND_PASSWORD` when it is online).
+
+### Where data is kept
+
+- **Firebase (recommended, free):** with `FIREBASE_CREDENTIALS` set, events, drafts and every
+  uploaded file are kept in Cloud Firestore (`app/storage.py`), so they survive restarts and the PC
+  and the online version share the same events. Uses Firebase's free Spark plan (1 GB); large photos
+  are scaled down to 2000 px on upload to make it last.
+  1. Firebase console → Firestore Database → Create database (production mode, `asia-southeast1`).
+  2. Project settings → Service accounts → Generate new private key.
+  3. Locally, put `FIREBASE_CREDENTIALS=<path to the .json>` in a `.env` file in the project root.
+     On Render, paste the whole contents of the .json as the `FIREBASE_CREDENTIALS` secret.
+  The key gives full access to the Firebase project: never commit it (`.gitignore` blocks the usual
+  key file names) or share it. Production-mode rules keep browsers out; only the server reads the data.
+- **Without Firebase:** events in SQLite at `data/ascend.db` (`ASCEND_DB` to change) and uploads in
+  `data/uploads/` on the server's own disk.
 
 ![layout](docs/screenshot.png)
 
@@ -69,7 +83,8 @@ images, but it does read the text of uploaded documents. Get a free Gemini key a
 | `AI_PROVIDER` | auto | `gemini` or `offline`; auto picks gemini when a key is set |
 | `ASCEND_CONFIG` | `config.json` | Path to the signatories/organization config |
 | `ASCEND_UPLOAD_DIR` | `data/uploads` | Where uploaded images and documents are kept |
-| `ASCEND_DB` | `data/ascend.db` | SQLite file holding the events |
+| `ASCEND_DB` | `data/ascend.db` | SQLite file holding the events (when Firebase is not used) |
+| `FIREBASE_CREDENTIALS` | (none) | Firebase service-account key (path or JSON): keep events and uploads in Firestore |
 | `ASCEND_PASSWORD` | (none) | Shared password for the whole app (recommended when online) |
 
 Tests: `pip install pytest && python -m pytest -q`
@@ -83,14 +98,13 @@ formats work) and a `render.yaml` blueprint.
 2. **New > Blueprint**, pick this repository, and fill in:
    - `GEMINI_API_KEY`: optional. Leave it empty if every officer will enter their own key in the app
    - `ASCEND_PASSWORD`: the password officers type to open the app (any username works)
+   - `FIREBASE_CREDENTIALS`: the whole contents of the Firebase service-account .json
 3. Deploy. The app is served at `https://ascend-docgen-xxxx.onrender.com`.
 
 Every push to `main` redeploys. On the free plan the app sleeps after 15 minutes
-without visitors (the next visit takes about a minute to wake up), and **its disk is
-wiped on every restart or redeploy: events and uploaded files are lost**. For events to
-be remembered online, give the service a persistent disk mounted at `/app/data`
-(Render's paid Starter plan, about $7/month plus $0.25/GB), or run the app on a computer
-that stays on.
+without visitors (the next visit takes about a minute to wake up) and its disk is wiped on
+every restart, so set `FIREBASE_CREDENTIALS` (see "Where data is kept"): events and uploads
+then live in Firestore and nothing is lost.
 `ASCEND_PASSWORD` works on any host; when it is unset the app is open.
 
 ## Signatories (`config.json`)
@@ -174,7 +188,8 @@ app/main.py          API routes, uploads, export
 app/registry.py      template registry, field validation, missing-field logic
 app/engine.py        docx filling + HTML preview
 app/files.py         reading uploaded documents (PDF, Word, PowerPoint, Excel, text)
-app/events.py        events: saved notes, files and drafts per activity (SQLite)
+app/events.py        events: saved notes, files and drafts per activity
+app/storage.py       where events and uploads are kept: SQLite + local disk, or Firestore
 app/ai/              provider interface, Gemini, offline parser, prompt
 templates/<id>/      schema.json + template.docx per form
 source_forms/        original blank SDAO forms
