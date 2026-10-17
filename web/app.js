@@ -31,11 +31,19 @@ function restore() {
   S.chat = [];
 }
 
+// ---------------------------------------------------------------- user's own API key
+// Kept only in this browser and sent as X-Gemini-Key; the server uses it for that request.
+const KEY_STORE = "ascend-docgen:gemini-key";
+function userKey() { try { return localStorage.getItem(KEY_STORE) || ""; } catch (_) { return ""; } }
+function setUserKey(k) {
+  try { k ? localStorage.setItem(KEY_STORE, k) : localStorage.removeItem(KEY_STORE); } catch (_) { toast("This browser cannot save the key"); }
+}
+
 // ---------------------------------------------------------------- api
 async function api(path, body) {
-  const res = await fetch(path, body === undefined ? {} : {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-  });
+  const headers = { "Content-Type": "application/json" };
+  if (userKey()) headers["X-Gemini-Key"] = userKey();
+  const res = await fetch(path, body === undefined ? {} : { method: "POST", headers, body: JSON.stringify(body) });
   if (!res.ok) {
     let msg = `${res.status}`;
     try { msg = (await res.json()).detail || msg; } catch (_) {}
@@ -54,10 +62,7 @@ function toast(text) {
 // ---------------------------------------------------------------- init
 async function init() {
   S.health = await getJSON("/api/health").catch(() => ({}));
-  const badge = $("#provider");
-  const prov = S.health.ai_provider || "unknown";
-  badge.textContent = prov === "offline" ? "Offline mode (no AI key)" : `AI: ${prov}`;
-  badge.classList.toggle("offline", prov === "offline");
+  renderBadge();
 
   const templates = await getJSON("/api/templates");
   const sel = $("#template");
@@ -78,6 +83,39 @@ async function loadTemplate(tid) {
   renderChat();
   await refresh();
 }
+
+function renderBadge() {
+  const badge = $("#provider");
+  const prov = S.health.ai_provider || "unknown";
+  const offline = !userKey() && prov === "offline";
+  badge.textContent = userKey() ? "AI: gemini (your key)" : offline ? "Offline mode · add API key" : `AI: ${prov}`;
+  badge.classList.toggle("offline", offline);
+}
+
+const keyDialog = $("#key-dialog");
+function keyStatus() {
+  const prov = S.health.ai_provider || "unknown";
+  $("#key-status").textContent = userKey()
+    ? "Using your key."
+    : prov === "offline" ? "No key yet: the assistant is in offline mode and can only read labelled notes."
+    : "No key of your own: using the server's key.";
+}
+$("#provider").addEventListener("click", () => {
+  $("#key-input").value = userKey();
+  $("#key-input").type = "password"; $("#key-show").checked = false;
+  $("#key-remove").hidden = !userKey();
+  keyStatus();
+  keyDialog.showModal();
+  $("#key-input").focus();
+});
+$("#key-show").addEventListener("change", (e) => { $("#key-input").type = e.target.checked ? "text" : "password"; });
+$("#key-cancel").addEventListener("click", () => keyDialog.close());
+$("#key-remove").addEventListener("click", () => { setUserKey(""); renderBadge(); keyDialog.close(); toast("Key removed from this browser"); });
+$("#key-form").addEventListener("submit", (e) => {
+  const k = $("#key-input").value.trim();
+  if (!k) { e.preventDefault(); $("#key-input").focus(); return; }
+  setUserKey(k); renderBadge(); toast("Key saved in this browser");
+});
 
 function greet() {
   S.chat.push({

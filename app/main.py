@@ -15,7 +15,7 @@ import uuid
 from urllib.parse import quote
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -112,7 +112,8 @@ def preview(req: DocRequest):
 
 
 @app.post("/api/chat")
-def chat(req: ChatRequest):
+def chat(req: ChatRequest, x_gemini_key: str = Header("", max_length=200)):
+    """X-Gemini-Key: the user's own Gemini key from the browser; used for this request only, never stored."""
     tpl, cfg = _template(req.template_id), load_config()
     state = req.state.model_dump()
     ctx = engine.Context(tpl, state, cfg, UPLOAD_DIR)
@@ -136,7 +137,7 @@ def chat(req: ChatRequest):
         for n, iid in enumerate(record.get("pages", []), 1):
             add_image(iid, source=f"page {n} of {record['name']}")
     try:
-        provider = get_provider()
+        provider = get_provider(api_key=x_gemini_key.strip() or None)
         result = provider.extract(tpl=tpl, values=resolved_values(tpl, state, cfg),
                                   skipped=state["skipped"], missing=missing_fields(tpl, state, cfg),
                                   message=message, images=images, history=req.history)

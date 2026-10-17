@@ -56,6 +56,28 @@ button { font: inherit; cursor: pointer; }
   background: rgba(255,255,255,.12); color: #e5e9f6; white-space: nowrap;
 }
 .badge.offline { background: rgba(224,173,43,.22); color: #ffe7a6; }
+button.badge { border: 1px solid transparent; font-family: inherit; }
+button.badge:hover { border-color: rgba(255,255,255,.35); }
+
+/* ---------- API key dialog */
+.key-dialog {
+  width: min(440px, calc(100vw - 32px)); padding: 20px; border: 0; border-radius: var(--radius);
+  box-shadow: 0 20px 50px rgba(19,35,91,.3); color: var(--ink);
+}
+.key-dialog::backdrop { background: rgba(19,35,91,.35); }
+.key-dialog h3 { margin: 0 0 8px; font-size: 16px; color: var(--navy); }
+.key-dialog p { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+.key-dialog a { color: var(--navy-2); font-weight: 500; }
+.key-dialog input[type=password], .key-dialog input[type=text] {
+  width: 100%; font: inherit; font-size: 13px; padding: 9px 10px;
+  border: 1px solid var(--line); border-radius: 8px;
+}
+.key-dialog input:focus { outline: 2px solid var(--navy-2); outline-offset: -1px; }
+.key-show { display: inline-flex; align-items: center; gap: 6px; margin: 8px 0 4px; font-size: 12px; color: var(--muted); }
+.key-status { min-height: 1.4em; }
+.key-actions { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+.key-actions span { flex: 1; }
+.key-actions button { padding: 7px 14px; }
 
 /* ---------- split layout */
 .split {

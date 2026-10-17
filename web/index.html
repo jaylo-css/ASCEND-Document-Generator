@@ -22,7 +22,7 @@
         <span>Form</span>
         <select id="template"></select>
       </label>
-      <span class="badge" id="provider" title="AI provider"></span>
+      <button type="button" class="badge" id="provider" title="AI settings: use your own Gemini API key"></button>
     </div>
   </header>
 
@@ -66,6 +66,23 @@
       </div>
     </section>
   </main>
+
+  <dialog class="key-dialog" id="key-dialog">
+    <form method="dialog" id="key-form">
+      <h3>Your Gemini API key</h3>
+      <p>Paste your own key to use the AI. It is saved only in this browser and sent with your messages; the server never stores it.</p>
+      <p><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get a free key from Google AI Studio</a></p>
+      <input id="key-input" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your key here">
+      <label class="key-show"><input type="checkbox" id="key-show"> Show key</label>
+      <p class="key-status" id="key-status"></p>
+      <div class="key-actions">
+        <button type="button" class="ghost" id="key-remove">Remove key</button>
+        <span></span>
+        <button type="button" class="ghost" id="key-cancel">Cancel</button>
+        <button type="submit" class="primary" id="key-save">Save</button>
+      </div>
+    </form>
+  </dialog>
 
   <div class="toast" id="toast" role="status" hidden></div>
   <script src="/static/app.js"></script>

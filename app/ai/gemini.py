@@ -48,6 +48,10 @@ class GeminiProvider(AIProvider):
         except httpx.HTTPError as e:
             raise ProviderError(f"Could not reach Gemini: {e}") from e
         if r.status_code != 200:
+            if "API_KEY_INVALID" in r.text or r.status_code in (401, 403):
+                raise ProviderError("Gemini rejected the API key. Check it under the key button at the top right.")
+            if r.status_code == 429:
+                raise ProviderError("This Gemini API key has hit its usage limit. Wait a minute, or use another key.")
             raise ProviderError(f"Gemini returned {r.status_code}: {r.text[:300]}")
         try:
             text = "".join(p.get("text", "") for p in r.json()["candidates"][0]["content"]["parts"])

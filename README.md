@@ -27,14 +27,21 @@ uvicorn app.main:app --reload
 
 Open http://localhost:8000.
 
-Without `GEMINI_API_KEY` the app runs in **offline mode**: a rule-based parser
+**Each user can use their own Gemini key**: click the badge at the top right
+(it says "Offline mode · add API key" when no key is set) and paste a key. It is
+saved only in that browser (localStorage) and sent with each chat request in the
+`X-Gemini-Key` header. The server uses it for that request and never stores or
+logs it. A user's own key takes priority over the server's `GEMINI_API_KEY`, so
+the server key is optional.
+
+With no key at all the app runs in **offline mode**: a rule-based parser
 that understands notes like `Event: ...`, `Date: ...`, `Venue: ...` and lists
 under `Program flow:` / `Attendance:` / `Committee:` headings. It cannot read
 images, but it does read the text of uploaded documents. Get a free Gemini key at https://aistudio.google.com/apikey.
 
 | Env var | Default | Meaning |
 |---|---|---|
-| `GEMINI_API_KEY` | (none) | Turns on the Gemini provider |
+| `GEMINI_API_KEY` | (none) | Server-wide Gemini key for users who haven't entered their own (optional) |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Any Gemini model that accepts images |
 | `AI_PROVIDER` | auto | `gemini` or `offline`; auto picks gemini when a key is set |
 | `ASCEND_CONFIG` | `config.json` | Path to the signatories/organization config |
@@ -49,7 +56,7 @@ formats work) and a `render.yaml` blueprint.
 
 1. Sign in at https://render.com with GitHub.
 2. **New > Blueprint**, pick this repository, and fill in:
-   - `GEMINI_API_KEY`: your Gemini key
+   - `GEMINI_API_KEY`: optional. Leave it empty if every officer will enter their own key in the app
    - `ASCEND_PASSWORD`: the password officers type to open the app (any username works)
 3. Deploy. The app is served at `https://ascend-docgen-xxxx.onrender.com`.
 

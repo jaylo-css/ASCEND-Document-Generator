@@ -161,3 +161,22 @@ def test_password_protects_everything_but_health(client, monkeypatch):
     assert client.get("/api/templates", auth=("any", "wrong")).status_code == 401
     assert client.get("/api/templates", auth=("any", "s3cret")).status_code == 200
     assert client.get("/api/health").status_code == 200
+
+
+def test_users_own_key_is_used_for_chat(client, monkeypatch):
+    seen = {}
+
+    def fake_post(url, json=None, timeout=None, headers=None):
+        seen["key"] = headers["x-goog-api-key"]
+        if headers["x-goog-api-key"] == "bad":
+            return httpx.Response(400, text='{"error": {"status": "INVALID_ARGUMENT", "details": [{"reason": "API_KEY_INVALID"}]}}')
+        reply = {"updates": {"event_name": "Hackathon"}, "reply": "Got it."}
+        return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": __import__("json").dumps(reply)}]}}]})
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    body = {"template_id": "post_activity_report", "message": "notes"}
+    r = client.post("/api/chat", json=body, headers={"X-Gemini-Key": "user-key"})
+    assert r.json()["provider"] == "gemini" and seen["key"] == "user-key"
+    r = client.post("/api/chat", json=body, headers={"X-Gemini-Key": "bad"})
+    assert r.status_code == 502 and "rejected the API key" in r.json()["detail"]
+    assert client.post("/api/chat", json=body).json()["provider"] == "offline"  # no key: server default

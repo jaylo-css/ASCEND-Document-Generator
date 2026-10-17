@@ -7,6 +7,7 @@ services:
     plan: free
     healthCheckPath: /api/health
     envVars:
+      # optional: leave empty if each user enters their own key in the app
       - key: GEMINI_API_KEY
         sync: false
       - key: ASCEND_PASSWORD

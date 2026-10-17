@@ -118,7 +118,7 @@ class OfflineProvider(AIProvider):
             parts.append(f"Still needed: {ask}. Send them here, or press Skip on any attachment you don't have.")
         else:
             parts.append("Everything is filled in. Review the preview and download when ready.")
-        parts.append("(Offline mode: set GEMINI_API_KEY for smarter extraction and image reading.)")
+        parts.append("(Offline mode: add a Gemini API key with the button at the top right for smarter extraction and image reading.)")
         return ExtractionResult(updates=updates, reply=" ".join(parts))
 
     @staticmethod

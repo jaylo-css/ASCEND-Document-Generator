@@ -42,7 +42,11 @@ class ProviderError(RuntimeError):
     pass
 
 
-def get_provider(name: str | None = None) -> AIProvider:
+def get_provider(name: str | None = None, api_key: str | None = None) -> AIProvider:
+    """api_key is a Gemini key supplied by the user for this request; it wins over the server's."""
+    if api_key:
+        from .gemini import GeminiProvider
+        return GeminiProvider(api_key=api_key)
     name = (name or os.environ.get("AI_PROVIDER") or "").lower()
     if not name:
         name = "gemini" if os.environ.get("GEMINI_API_KEY") else "offline"
