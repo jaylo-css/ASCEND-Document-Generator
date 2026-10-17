@@ -8,7 +8,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const S = {
   tid: null,
   schema: null,
-  state: { values: {}, skipped: [], signatories: {} },
+  state: { values: {}, skipped: [], signatories: {}, sig_titles: {}, sig_removed: [] },
   chat: [],          // {role: "user"|"assistant"|"note"|"error", text, images?: [url], files?: [name]}
   pending: [],       // files waiting to be sent: {file, url} (url is null for documents)
   missing: [],
@@ -19,15 +19,16 @@ const S = {
 
 // ---------------------------------------------------------------- storage
 const key = () => `ascend-docgen:${S.tid}`;
+const emptyState = () => ({ values: {}, skipped: [], signatories: {}, sig_titles: {}, sig_removed: [] });
 function save() {
   try { localStorage.setItem(key(), JSON.stringify({ state: S.state, chat: S.chat.slice(-60) })); } catch (_) {}
 }
 function restore() {
   try {
     const raw = JSON.parse(localStorage.getItem(key()) || "null");
-    if (raw) { S.state = Object.assign({ values: {}, skipped: [], signatories: {} }, raw.state); S.chat = raw.chat || []; return; }
+    if (raw) { S.state = Object.assign(emptyState(), raw.state); S.chat = raw.chat || []; return; }
   } catch (_) {}
-  S.state = { values: {}, skipped: [], signatories: {} };
+  S.state = emptyState();
   S.chat = [];
 }
 
@@ -134,7 +135,7 @@ async function refresh(changed = []) {
   // keep focus on the field the user moved to while we re-rendered
   const act = document.activeElement;
   const focusSel = act && $("#pages").contains(act)
-    ? ["field", "sig", "row", "col", "img"].filter((k) => act.dataset[k] !== undefined)
+    ? ["field", "sig", "sigtitle", "row", "col", "img"].filter((k) => act.dataset[k] !== undefined)
         .map((k) => `[data-${k}="${CSS.escape(act.dataset[k])}"]`).join("")
     : "";
   $("#pages").innerHTML = data.html;
@@ -193,7 +194,7 @@ function renderMeta() {
   const hidden = S.schema.fields.filter((f) => f.in_document === false);
   const meta = $("#meta");
   const placeholders = Object.entries(S.schema.config_signatories || {})
-    .filter(([role, v]) => /^\[.*\]$/.test(v) && !(S.state.signatories || {})[role]);
+    .filter(([role, v]) => /^\[.*\]$/.test(v) && !(S.state.signatories || {})[role] && !(S.state.sig_removed || []).includes(role));
   meta.innerHTML =
     hidden.map((f) => `<label>${esc(f.label)}<input data-meta="${esc(f.id)}" value="${esc(S.values[f.id] || "")}" placeholder="Not printed; used for the summary"></label>`).join("") +
     (placeholders.length ? `<span class="note">Highlighted signatory names are placeholders from config.json. Click one in the document to set it for this report, or update config.json once for every report.</span>` : "");
@@ -231,6 +232,13 @@ pages.addEventListener("focusout", (e) => {
     if (!text || text === cfg) delete S.state.signatories[role]; else S.state.signatories[role] = text;
     save(); refresh(); return;
   }
+  if (el.dataset.sigtitle) {
+    const role = el.dataset.sigtitle;
+    const def = (S.schema.signatories || {})[role] || "";
+    S.state.sig_titles = S.state.sig_titles || {};
+    if (!text || text === def) delete S.state.sig_titles[role]; else S.state.sig_titles[role] = text;
+    save(); refresh(); return;
+  }
   const fid = el.dataset.field;
   if (!fid) return;
   const f = fieldDef(fid);
@@ -260,6 +268,12 @@ pages.addEventListener("focusout", (e) => {
 pages.addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (!b) return;
+  if (b.dataset.sigRemove || b.dataset.sigAdd) {
+    const role = b.dataset.sigRemove || b.dataset.sigAdd;
+    const rest = (S.state.sig_removed || []).filter((r) => r !== role);
+    S.state.sig_removed = b.dataset.sigRemove ? [...rest, role] : rest;
+    save(); refresh(); return;
+  }
   const fid = b.dataset.field || b.dataset.addRow;
   if (b.dataset.addRow !== undefined) {
     const f = fieldDef(fid);
@@ -396,7 +410,7 @@ composer.addEventListener("submit", async (e) => {
 // ---------------------------------------------------------------- toolbar
 $("#new-doc").addEventListener("click", () => {
   if (!confirm("Clear this form and the conversation?")) return;
-  S.state = { values: {}, skipped: [], signatories: {} };
+  S.state = emptyState();
   S.chat = []; greet(); save(); renderChat(); refresh();
 });
 

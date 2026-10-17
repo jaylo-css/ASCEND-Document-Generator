@@ -6,6 +6,8 @@ spaces are replaced with tokens that app/engine.py understands:
 
     {{field}}          inline text field
     {{sig:role}}       signatory name (from config.json or a field)
+    {{line:role}}      signature underline (blank when the signer is removed)
+    {{title:role}}     signatory position, editable per report
     {{annex:field}}    "attached / not attached" marker for an attachment
     {{#field}}         whole paragraph replaced by a block (paragraphs, table, images)
     {{#annexes}}       where the annex pages for attachments are appended
@@ -93,6 +95,12 @@ def main():
         r = p.runs[0]
         r.text = "{{sig:%s}}\t{{sig:%s}}" % (left, right)
         r.bold = True
+
+    # "Prepared by": underline and position are tokens too, so each report can change the
+    # officers' positions or drop the second signer (one officer preparing the report).
+    for p, kind in ((ps[27], "line"), (ps[28], "title")):
+        p.paragraph_format.tab_stops.add_tab_stop(Inches(3.0), WD_TAB_ALIGNMENT.LEFT)
+        set_text(p, "{{%s:president}}\t{{%s:secretary}}" % (kind, kind))
 
     # annex pages go after the last signature line
     last = ps[40]

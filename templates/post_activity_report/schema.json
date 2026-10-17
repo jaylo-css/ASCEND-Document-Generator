@@ -130,5 +130,6 @@
     "adviser_2": "RSO Adviser #2",
     "program_chair": "Program Chair/Supervisor of the Unit",
     "dean": "School Dean/Director or Head of the Unit"
-  }
+  },
+  "removable_signatories": ["secretary"]
 }

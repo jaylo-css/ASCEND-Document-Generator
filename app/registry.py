@@ -51,7 +51,8 @@ class Template:
         return next((f for f in self.fields if f["id"] == field_id), None)
 
     def public(self) -> dict:
-        return {k: self.schema.get(k) for k in ("id", "name", "office", "description", "fields", "signatories")}
+        return {k: self.schema.get(k) for k in ("id", "name", "office", "description", "fields", "signatories",
+                                                "removable_signatories")}
 
 
 def _load(folder: Path) -> Template:
@@ -77,7 +78,8 @@ def get_template(template_id: str) -> Template:
 # ---------------------------------------------------------------- state
 #
 # A document's state is plain JSON kept by the browser:
-#   {"values": {field_id: value}, "skipped": [field_id], "signatories": {role: name}}
+#   {"values": {field_id: value}, "skipped": [field_id], "signatories": {role: name},
+#    "sig_titles": {role: position}, "sig_removed": [role]}
 # value shapes: text/longtext -> str, table -> [[cell, ...], ...],
 #               images -> [{"id": upload_id, "caption": str}]
 

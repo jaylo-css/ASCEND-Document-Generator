@@ -180,3 +180,34 @@ def test_users_own_key_is_used_for_chat(client, monkeypatch):
     r = client.post("/api/chat", json=body, headers={"X-Gemini-Key": "bad"})
     assert r.status_code == 502 and "rejected the API key" in r.json()["detail"]
     assert client.post("/api/chat", json=body).json()["provider"] == "offline"  # no key: server default
+
+
+def _prepared_by_lines(data: bytes) -> list[str]:
+    ps = [p.text for p in Document(io.BytesIO(data)).paragraphs]
+    i = ps.index("Prepared by")
+    return ps[i + 2:i + 5]  # names, underlines, positions
+
+
+def test_prepared_by_defaults_to_president_and_secretary(client):
+    state = {"signatories": {"president": "Juan P. Santos", "secretary": "Ana L. Cruz"}}
+    r = client.post("/api/export/docx", json={"template_id": "post_activity_report", "state": state})
+    names, lines, titles = _prepared_by_lines(r.content)
+    assert names == "Juan P. Santos\tAna L. Cruz"
+    assert lines.count("_") == 60 and titles == "President\tSecretary"
+
+
+def test_prepared_by_one_officer_with_custom_position(client):
+    state = {"signatories": {"president": "Maria Reyes"}, "sig_titles": {"president": "Vice President - Internal"},
+             "sig_removed": ["secretary"]}
+    body = {"template_id": "post_activity_report", "state": state}
+    names, lines, titles = _prepared_by_lines(client.post("/api/export/docx", json=body).content)
+    assert names.strip() == "Maria Reyes" and "SECRETARY" not in names
+    assert lines.strip() == "_" * 30 and titles.strip() == "Vice President - Internal"
+    html = client.post("/api/preview", json=body).json()["html"]
+    assert 'data-sig-add="secretary"' in html and "Vice President - Internal" in html
+
+
+def test_only_removable_signatories_can_be_removed(client):
+    state = {"sig_removed": ["dean"]}
+    r = client.post("/api/export/docx", json={"template_id": "post_activity_report", "state": state})
+    assert "Dr. Corazon B. Rebong, PCpE" in doc_text(r.content)

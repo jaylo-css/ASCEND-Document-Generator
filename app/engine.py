@@ -5,6 +5,8 @@ Tokens (placed in the template by tools/build_*_template.py or by hand in Word):
 
     {{field}}          inline text field
     {{sig:role}}       signatory name: config.json signatories, overridable per document
+    {{line:role}}      signature underline; blank when the document removed that signer
+    {{title:role}}     signatory position: schema label, overridable per document
     {{annex:field}}    "see Annex B" / "N/A" marker for an attachment field
     {{#field}}         paragraph replaced by the field's block (paragraphs, table or images)
     {{#annexes}}       paragraph replaced by one annex page per provided attachment
@@ -34,6 +36,7 @@ from .registry import Template, is_placeholder, resolved_values
 
 TOKEN = re.compile(r"\{\{(#?)(\w+)(?::(\w+))?\}\}")
 BLANK_LINE = "_" * 45
+SIG_LINE = "_" * 30  # fits before the 3-inch tab stop of the second signer
 FONT = "Aptos"
 
 
@@ -47,6 +50,13 @@ class Context:
             if name and str(name).strip():
                 sigs[role] = str(name).strip()
         self.signatories = sigs
+        titles = dict(tpl.schema.get("signatories", {}))
+        for role, title in ((state or {}).get("sig_titles") or {}).items():
+            if role in titles and title and str(title).strip():
+                titles[role] = str(title).strip()
+        self.titles = titles
+        removable = set(tpl.schema.get("removable_signatories", []))
+        self.removed = removable & set((state or {}).get("sig_removed") or [])
         self.upload_dir = upload_dir
         self.annexes = []  # (letter, field)
         for f in tpl.fields:
@@ -113,8 +123,14 @@ def fill_docx(tpl: Template, state: dict, config: dict, upload_dir: Path) -> byt
 
 def _inline_text(m: re.Match, ctx: Context) -> str:
     _, name, sub = m.groups()
+    if name in ("sig", "line", "title") and sub in ctx.removed:
+        return ""
     if name == "sig":
         return ctx.signatories.get(sub, f"[{sub.upper()}]")
+    if name == "line":
+        return SIG_LINE
+    if name == "title":
+        return ctx.titles.get(sub, sub)
     if name == "annex":
         return ctx.annex_marker(sub)[0]
     v = ctx.values.get(name)
@@ -401,8 +417,21 @@ def _run_css(r) -> str:
 
 def _html_inline_token(m: re.Match, ctx: Context) -> str:
     _, name, sub = m.groups()
+    if name in ("sig", "line", "title") and sub in ctx.removed:
+        if name == "title":  # keep a way back
+            return f'<button type="button" class="sig-add no-print" data-sig-add="{E(sub)}">+ Add second signer</button>'
+        return ""
+    if name == "line":
+        return SIG_LINE
+    if name == "title":
+        x = ""
+        if sub in ctx.tpl.schema.get("removable_signatories", []):
+            x = (f'<button type="button" class="sig-x no-print" data-sig-remove="{E(sub)}" '
+                 f'title="Remove this signer (one officer prepares the report)">×</button>')
+        return (f'<span class="fld sig-title" contenteditable="plaintext-only" spellcheck="false" '
+                f'data-sigtitle="{E(sub)}" title="Position (click to edit)">{E(ctx.titles.get(sub, sub))}</span>{x}')
     if name == "sig":
-        role_label = ctx.tpl.schema.get("signatories", {}).get(sub, sub)
+        role_label = ctx.titles.get(sub, sub)
         v = ctx.signatories.get(sub, "")
         cls = "fld sig" + (" placeholder" if is_placeholder(v) or not v else "")
         return (f'<span class="{cls}" contenteditable="plaintext-only" spellcheck="false" '

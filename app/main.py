@@ -56,6 +56,8 @@ class DocState(BaseModel):
     values: dict = Field(default_factory=dict)
     skipped: list[str] = Field(default_factory=list)
     signatories: dict = Field(default_factory=dict)
+    sig_titles: dict = Field(default_factory=dict)   # role -> position shown under the line
+    sig_removed: list[str] = Field(default_factory=list)  # removable roles left off this report
 
 
 class DocRequest(BaseModel):

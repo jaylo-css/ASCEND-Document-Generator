@@ -224,6 +224,16 @@ button.ghost:hover { background: var(--navy-soft); }
 .fld.changed { animation: flash 1.4s ease-out; }
 @keyframes flash { from { background: rgba(224,173,43,.55); } to { background: transparent; } }
 .fld.sig.placeholder { color: #a0661b; background: var(--gold-soft); }
+.sig-x {
+  border: 0; background: transparent; color: #9aa2b3; font-size: 15px; line-height: 1;
+  padding: 0 4px; margin-left: 2px; vertical-align: baseline;
+}
+.sig-x:hover { color: var(--danger); }
+.sig-add {
+  border: 1px dashed #b8bfcd; background: transparent; color: var(--navy-2);
+  border-radius: 6px; padding: 1px 8px; font-size: 12px; font-family: var(--ui);
+}
+.sig-add:hover { background: var(--navy-soft); }
 .fld.blk { display: block; min-height: 1.3em; }
 .fld.blk p { margin: 0 0 6px; }
 .annex-tag { font-style: italic; }
