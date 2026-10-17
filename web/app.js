@@ -1,5 +1,6 @@
 // ASCEnD DocGen front end: chat on the left, live editable document on the right.
-// All document state lives in the browser (localStorage), keyed by template id.
+// A quick draft lives in the browser (localStorage, per form). A document of an event is saved
+// on the server inside that event (see app/events.py), together with what is known about the event.
 "use strict";
 
 const $ = (s) => document.querySelector(s);
@@ -15,15 +16,37 @@ const S = {
   values: {},
   health: {},
   busy: false,
+  event: null,       // the selected event (full object from /api/events/{id}) or null for a quick draft
+  events: [],
 };
 
 // ---------------------------------------------------------------- storage
 const key = () => `ascend-docgen:${S.tid}`;
 const emptyState = () => ({ values: {}, skipped: [], signatories: {}, sig_titles: {}, sig_removed: [] });
+let saveTimer = null;
 function save() {
+  if (S.event) {  // keep the local copy current; write to the server shortly after the last change
+    S.event.documents[S.tid] = { state: S.state, chat: S.chat.slice(-60) };
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(flushSave, 600);
+    return;
+  }
   try { localStorage.setItem(key(), JSON.stringify({ state: S.state, chat: S.chat.slice(-60) })); } catch (_) {}
 }
+async function flushSave() {
+  if (!saveTimer) return;
+  clearTimeout(saveTimer); saveTimer = null;
+  const doc = S.event && S.event.documents[S.tid];
+  if (doc) await api(`/api/events/${S.event.id}/documents/${S.tid}`, doc, "PUT").catch((err) => toast(`Not saved: ${err.message}`));
+}
+window.addEventListener("beforeunload", () => { if (saveTimer) flushSave(); });
 function restore() {
+  if (S.event) {
+    const doc = S.event.documents[S.tid];
+    S.state = Object.assign(emptyState(), doc ? doc.state : {});
+    S.chat = doc ? doc.chat || [] : [];
+    return;
+  }
   try {
     const raw = JSON.parse(localStorage.getItem(key()) || "null");
     if (raw) { S.state = Object.assign(emptyState(), raw.state); S.chat = raw.chat || []; return; }
@@ -41,10 +64,11 @@ function setUserKey(k) {
 }
 
 // ---------------------------------------------------------------- api
-async function api(path, body) {
+async function api(path, body, method = "POST") {
   const headers = { "Content-Type": "application/json" };
   if (userKey()) headers["X-Gemini-Key"] = userKey();
-  const res = await fetch(path, body === undefined ? {} : { method: "POST", headers, body: JSON.stringify(body) });
+  const opts = body === undefined ? {} : { method, headers, body: body === null ? undefined : JSON.stringify(body) };
+  const res = await fetch(path, opts);
   if (!res.ok) {
     let msg = `${res.status}`;
     try { msg = (await res.json()).detail || msg; } catch (_) {}
@@ -52,7 +76,7 @@ async function api(path, body) {
   }
   return res;
 }
-const getJSON = async (p, b) => (await api(p, b)).json();
+const getJSON = async (p, b, m) => (await api(p, b, m)).json();
 
 function toast(text) {
   const t = $("#toast");
@@ -71,10 +95,16 @@ async function init() {
   const last = localStorage.getItem("ascend-docgen:last");
   if (last && templates.some((t) => t.id === last)) sel.value = last;
   sel.onchange = () => loadTemplate(sel.value);
+  let lastEvent = "";
+  try { lastEvent = localStorage.getItem("ascend-docgen:event") || ""; } catch (_) {}
+  await loadEvents(lastEvent);
+  if ($("#event").value) S.event = await getJSON(`/api/events/${$("#event").value}`).catch(() => null);
+  renderEventBar();
   await loadTemplate(sel.value);
 }
 
 async function loadTemplate(tid) {
+  await flushSave();
   S.tid = tid;
   try { localStorage.setItem("ascend-docgen:last", tid); } catch (_) {}
   S.schema = await getJSON(`/api/templates/${tid}`);
@@ -119,6 +149,16 @@ $("#key-form").addEventListener("submit", (e) => {
 });
 
 function greet() {
+  if (S.event) {
+    const known = S.event.notes.length + S.event.files.length;
+    S.chat.push({
+      role: "assistant",
+      text: `This is the ${S.schema.name} for "${S.event.name}". ` + (known
+        ? `I already have ${fmtCount(S.event.notes.length, "note")} and ${fmtCount(S.event.files.length, "file")} about this event: press "Fill from event info" and I'll fill in everything I can, then ask for what's missing.`
+        : `Nothing is saved about this event yet. Tell me about it here, or open "Event info" to add notes and files; what you tell me is remembered for the event's other forms too.`),
+    });
+    return;
+  }
   S.chat.push({
     role: "assistant",
     text: S.schema.greeting || `Hi! Let's fill out the ${S.schema.name}. Paste whatever you have about the event: notes, the program, a list of attendees, photos (event pictures, a signed attendance sheet, the pubmat), or files like a PDF, Word document, slides or spreadsheet. I'll put everything in the right place and ask for anything missing.\n\nYou can also click any part of the document on the right to edit it directly.`,
@@ -370,46 +410,52 @@ $("#input").addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); composer.requestSubmit(); }
 });
 
-composer.addEventListener("submit", async (e) => {
+composer.addEventListener("submit", (e) => {
   e.preventDefault();
-  if (S.busy) return;
   const text = $("#input").value.trim();
   if (!text && !S.pending.length) return;
+  sendChat({ text, files: S.pending });
+});
+
+// One turn with the assistant. generate: fill the form from the event's saved information.
+async function sendChat({ text = "", files = [], generate = false }) {
+  if (S.busy) return;
   S.busy = true; $("#send").disabled = true;
-  const pendingFiles = S.pending; S.pending = []; renderThumbs();
+  S.pending = []; renderThumbs();
   $("#input").value = "";
   try {
-    let uploaded = [];
-    if (pendingFiles.length) {
-      const fd = new FormData();
-      pendingFiles.forEach((p) => fd.append("files", p.file));
-      const res = await fetch("/api/uploads", { method: "POST", body: fd });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || "Upload failed");
-      uploaded = await res.json();
-    }
+    const uploaded = files.length ? await uploadFiles(files.map((p) => p.file)) : [];
+    await attachToEvent(uploaded);  // files given in an event's chat are remembered for the event
     const history = S.chat.filter((m) => m.role === "user" || m.role === "assistant").slice(-10).map((m) => ({ role: m.role, text: m.text }));
     const imgs = uploaded.filter((u) => u.kind !== "document"), docs = uploaded.filter((u) => u.kind === "document");
-    S.chat.push({ role: "user", text: text || "(attachments)", images: imgs.map((u) => u.url), files: docs.map((u) => u.name) });
+    S.chat.push({ role: "user", text: generate ? "Fill this form from the event info." : text || "(attachments)",
+                  images: imgs.map((u) => u.url), files: docs.map((u) => u.name) });
     renderChat();
     const data = await getJSON("/api/chat", {
-      template_id: S.tid, state: S.state, message: text, image_ids: imgs.map((u) => u.id), file_ids: docs.map((u) => u.id), history,
+      template_id: S.tid, state: S.state, message: text, image_ids: imgs.map((u) => u.id), file_ids: docs.map((u) => u.id),
+      history, event_id: S.event ? S.event.id : "", generate,
     });
     S.state = data.state;
     S.chat.push({ role: "assistant", text: data.reply || "Done." });
+    if ((data.remembered || []).length) {
+      S.chat.push({ role: "note", text: `Saved to the event: ${data.remembered.join(" ")}` });
+      reloadEvent();
+    }
     save();
     await refresh(data.changed || []);
   } catch (err) {
     S.chat.push({ role: "error", text: `Something went wrong: ${err.message}` });
-    if (!text) S.pending = pendingFiles; else $("#input").value = $("#input").value || text;
+    if (!generate) { if (!text) S.pending = files; else $("#input").value = $("#input").value || text; renderThumbs(); }
   } finally {
     S.busy = false; $("#send").disabled = false;
     renderChat(); save();
   }
-});
+}
 
 // ---------------------------------------------------------------- toolbar
 $("#new-doc").addEventListener("click", () => {
-  if (!confirm("Clear this form and the conversation?")) return;
+  const what = S.event ? `Clear this form and its conversation? What is saved about "${S.event.name}" is kept.` : "Clear this form and the conversation?";
+  if (!confirm(what)) return;
   S.state = emptyState();
   S.chat = []; greet(); save(); renderChat(); refresh();
 });
@@ -440,6 +486,171 @@ async function download(kind) {
     btn.disabled = false;
   }
 }
+// ---------------------------------------------------------------- events
+// An event keeps notes and files about one activity on the server; every form opened for the
+// event reads them, and its drafts are saved inside the event so other officers can continue them.
+const evDialog = $("#ev-dialog");
+const fmtCount = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+async function loadEvents(selectId) {
+  S.events = await getJSON("/api/events").catch(() => []);
+  const sel = $("#event");
+  sel.innerHTML = `<option value="">Quick draft (no event)</option>` +
+    S.events.map((e) => `<option value="${esc(e.id)}">${esc(e.name)}</option>`).join("") +
+    `<option value="__new">+ New event…</option>`;
+  sel.value = selectId && S.events.some((e) => e.id === selectId) ? selectId : "";
+}
+
+async function selectEvent(id) {
+  await flushSave();
+  S.event = id ? await getJSON(`/api/events/${id}`).catch(() => null) : null;
+  try { localStorage.setItem("ascend-docgen:event", S.event ? S.event.id : ""); } catch (_) {}
+  $("#event").value = S.event ? S.event.id : "";
+  restore();
+  if (!S.chat.length) greet();
+  renderEventBar(); renderChat();
+  await refresh();
+}
+
+async function reloadEvent() {
+  if (!S.event) return;
+  const fresh = await getJSON(`/api/events/${S.event.id}`).catch(() => null);
+  if (fresh) { fresh.documents[S.tid] = S.event.documents[S.tid]; S.event = fresh; }
+  renderEventBar();
+  if (evDialog.open) renderEventDialog();
+}
+
+function renderEventBar() {
+  const bar = $("#event-bar");
+  if (!S.event) { bar.hidden = true; return; }
+  const e = S.event, known = e.notes.length + e.files.length;
+  bar.hidden = false;
+  bar.innerHTML = `<div class="ev-info"><b>${esc(e.name)}</b><span>${fmtCount(e.notes.length, "note")} · ${fmtCount(e.files.length, "file")}</span></div>` +
+    `<button type="button" class="ghost" id="ev-open">Event info</button>` +
+    `<button type="button" class="primary gold" id="ev-fill" ${known ? "" : "disabled title=\"Add notes or files to the event first\""}>Fill from event info</button>`;
+}
+
+$("#event").addEventListener("change", async (e) => {
+  if (e.target.value === "__new") {
+    e.target.value = S.event ? S.event.id : "";
+    openEventDialog(true);
+  } else {
+    await selectEvent(e.target.value);
+  }
+});
+
+$("#event-bar").addEventListener("click", (e) => {
+  if (e.target.id === "ev-open") openEventDialog(false);
+  if (e.target.id === "ev-fill") sendChat({ text: "Fill in this form using the saved event information.", generate: true });
+});
+
+function openEventDialog(create) {
+  evDialog.dataset.mode = create ? "create" : "manage";
+  $("#ev-title").textContent = create ? "New event" : "Event info";
+  $("#ev-name").value = create ? "" : S.event.name;
+  $("#ev-first-notes").value = "";
+  $("#ev-create").hidden = !create;
+  $("#ev-manage").hidden = create;
+  $("#ev-delete").hidden = create;
+  $("#ev-save").textContent = create ? "Create event" : "Save name";
+  const local = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+  $("#ev-warn").hidden = local || S.health.protected !== false;
+  if (!create) renderEventDialog();
+  evDialog.showModal();
+  $(create ? "#ev-name" : "#ev-note").focus();
+}
+
+function renderEventDialog() {
+  const e = S.event;
+  if (!e) return;
+  $("#ev-notes").innerHTML = e.notes.length ? e.notes.map((n) =>
+    `<li><span class="ev-text">${n.source === "assistant" ? `<span class="ev-tag" title="Learned by the assistant from a chat">AI</span>` : ""}${esc(n.text)}</span>` +
+    `<button type="button" class="ev-x" data-del-note="${esc(n.id)}" title="Delete note">×</button></li>`).join("")
+    : `<li class="muted">Nothing saved yet. Add what you know: date, venue, purpose, people, program, budget…</li>`;
+  $("#ev-file-list").innerHTML = e.files.map((f) =>
+    `<li><span class="ev-text"><span class="file-chip">${esc(f.name)}</span></span>` +
+    `<button type="button" class="ev-x" data-del-file="${esc(f.id)}" title="Remove file from the event">×</button></li>`).join("");
+  const forms = [...$("#template").options].map((o) => {
+    const started = e.documents[o.value];
+    return `<button type="button" class="ev-doc ${o.value === S.tid ? "current" : ""}" data-open-form="${esc(o.value)}">` +
+      `${esc(o.textContent)}<span>${started ? "draft saved" : "not started"}</span></button>`;
+  });
+  $("#ev-docs").innerHTML = forms.join("");
+}
+
+$("#ev-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const name = $("#ev-name").value.trim();
+  if (!name) { $("#ev-name").focus(); return; }
+  try {
+    if (evDialog.dataset.mode === "create") {
+      const created = await getJSON("/api/events", { name, notes: $("#ev-first-notes").value });
+      await loadEvents(created.id);
+      await selectEvent(created.id);
+      openEventDialog(false);  // straight on to adding files and more notes
+      toast("Event created");
+    } else {
+      S.event = Object.assign(await getJSON(`/api/events/${S.event.id}`, { name }, "PATCH"), { documents: S.event.documents });
+      await loadEvents(S.event.id);
+      renderEventBar(); toast("Event renamed");
+    }
+  } catch (err) { toast(err.message); }
+});
+
+$("#ev-close").addEventListener("click", () => evDialog.close());
+$("#ev-add-note").addEventListener("click", async () => {
+  const text = $("#ev-note").value.trim();
+  if (!text) { $("#ev-note").focus(); return; }
+  await getJSON(`/api/events/${S.event.id}/notes`, { text }).catch((err) => toast(err.message));
+  $("#ev-note").value = "";
+  await reloadEvent();
+});
+$("#ev-files").addEventListener("change", async (e) => {
+  const picked = [...e.target.files];
+  e.target.value = "";
+  if (!picked.length) return;
+  try {
+    await attachToEvent(await uploadFiles(picked));
+    toast(`${fmtCount(picked.length, "file")} added to the event`);
+  } catch (err) { toast(err.message); }
+});
+$("#ev-manage").addEventListener("click", async (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.dataset.delNote) await api(`/api/events/${S.event.id}/notes/${b.dataset.delNote}`, null, "DELETE");
+  else if (b.dataset.delFile) await api(`/api/events/${S.event.id}/files/${b.dataset.delFile}`, null, "DELETE");
+  else if (b.dataset.openForm) {
+    evDialog.close();
+    $("#template").value = b.dataset.openForm;
+    await loadTemplate(b.dataset.openForm);
+    return;
+  } else return;
+  await reloadEvent();
+});
+$("#ev-delete").addEventListener("click", async () => {
+  if (!confirm(`Delete the event "${S.event.name}" with its notes, files and drafts? This cannot be undone.`)) return;
+  await api(`/api/events/${S.event.id}`, null, "DELETE").catch((err) => toast(err.message));
+  evDialog.close();
+  await loadEvents("");
+  await selectEvent("");
+  toast("Event deleted");
+});
+
+async function uploadFiles(fileList) {
+  const fd = new FormData();
+  fileList.forEach((f) => fd.append("files", f));
+  const res = await fetch("/api/uploads", { method: "POST", body: fd });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || "Upload failed");
+  return res.json();
+}
+
+async function attachToEvent(uploaded) {
+  if (!S.event || !uploaded.length) return;
+  const names = Object.fromEntries(uploaded.map((u) => [u.id, u.name]));
+  await getJSON(`/api/events/${S.event.id}/files`, { ids: uploaded.map((u) => u.id), names });
+  await reloadEvent();
+}
+
 $("#dl-docx").addEventListener("click", () => download("docx"));
 $("#dl-pdf").addEventListener("click", () => download("pdf"));
 

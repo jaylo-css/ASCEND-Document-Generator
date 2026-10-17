@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ASCEnD DocGen</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23e0ad2b'/%3E%3Ctext x='16' y='23' font-family='Arial' font-weight='700' font-size='20' text-anchor='middle' fill='%2313235b'%3EA%3C/text%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/styles.css">
@@ -19,6 +20,10 @@
     </div>
     <div class="top-actions">
       <label class="tpl-pick">
+        <span>Event</span>
+        <select id="event" title="Documents of an event share what the assistant knows about it"></select>
+      </label>
+      <label class="tpl-pick">
         <span>Form</span>
         <select id="template"></select>
       </label>
@@ -32,6 +37,7 @@
         <h2>Assistant</h2>
         <button class="ghost" id="new-doc" title="Clear this form and start over">New document</button>
       </div>
+      <div class="event-bar" id="event-bar" hidden></div>
       <div class="log" id="log" aria-live="polite"></div>
       <div class="needs" id="needs" hidden></div>
       <form class="composer" id="composer">
@@ -80,6 +86,40 @@
         <span></span>
         <button type="button" class="ghost" id="key-cancel">Cancel</button>
         <button type="submit" class="primary" id="key-save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="key-dialog ev-dialog" id="ev-dialog">
+    <form method="dialog" id="ev-form">
+      <h3 id="ev-title">New event</h3>
+      <label class="ev-label">Event name
+        <input id="ev-name" maxlength="120" autocomplete="off" placeholder="e.g. Arduino Basics Workshop 2026">
+      </label>
+      <div id="ev-create">
+        <label class="ev-label">What do you know about it so far? <span class="muted">(optional)</span>
+          <textarea id="ev-first-notes" rows="5" placeholder="Date, venue, purpose, participants, speakers, program, budget... You can add more and attach files later."></textarea>
+        </label>
+        <p>Everything you save here is remembered for this event, so the assistant can fill any form for it: the proposal now, the post-activity report later.</p>
+      </div>
+      <div id="ev-manage">
+        <div class="ev-h">Saved information <span class="muted">used for every form of this event</span></div>
+        <ul class="ev-list" id="ev-notes"></ul>
+        <textarea id="ev-note" rows="3" placeholder="Add a fact, decision, name, number..."></textarea>
+        <div class="ev-row">
+          <button type="button" class="ghost" id="ev-add-note">Add note</button>
+          <label class="ghost ev-attach">Attach files<input type="file" id="ev-files" multiple hidden accept="image/*,.pdf,.docx,.doc,.odt,.pptx,.ppt,.odp,.xlsx,.xls,.ods,.txt,.md,.csv,.tsv,.json,.rtf"></label>
+        </div>
+        <ul class="ev-list" id="ev-file-list"></ul>
+        <div class="ev-h">Forms for this event</div>
+        <div class="ev-docs" id="ev-docs"></div>
+        <p class="ev-warn" id="ev-warn" hidden>This server has no password (ASCEND_PASSWORD), so anyone with the link can read your events. Set one before sharing the link.</p>
+      </div>
+      <div class="key-actions">
+        <button type="button" class="ghost danger" id="ev-delete">Delete event</button>
+        <span></span>
+        <button type="button" class="ghost" id="ev-close">Close</button>
+        <button type="submit" class="primary" id="ev-save">Create event</button>
       </div>
     </form>
   </dialog>

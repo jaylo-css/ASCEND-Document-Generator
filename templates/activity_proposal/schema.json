@@ -11,7 +11,7 @@
     "This proposal is for an activity that has not happened yet: write in formal future tense (\"The activity will ...\") suitable for a university office.",
     "You may write the explanatory prose of \"introduction\", \"objectives\", \"core_values\" and \"sdgs\" yourself from what the user says about the activity, but never invent facts: names, dates, venues, amounts or numbers of participants.",
     "\"objectives\": one objective per line, each starting with \"To ...\".",
-    "\"core_values\": only the NU core values the user names, each followed by one or two sentences on how the activity promotes it. If the user has not named any, ask which NU core values apply instead of guessing.",
+    "\"core_values\": the core values of National University are exactly these five: Resilience, Patriotism, Innovation, Integrity and Compassion. Choose the two or three that best fit the activity yourself (use the user's choice if they name some), and write each as \"Value: one or two sentences on how the activity promotes it\", one per line. Never use values outside this list.",
     "\"sdgs\": use the official UN goal number and name (for example \"SDG 4: Quality Education\"), each followed by one or two sentences on how the activity addresses it. You may suggest goals that clearly fit; if you do, say so in the reply so the user can confirm.",
     "\"activity_overview\": one row per part of the activity (for example a talk, a workshop, a contest).",
     "\"budget_items\": write money as ₱1,500.00. Amount = quantity × unit price when both are known. The TOTAL row is calculated automatically, so do not add it as a row.",
@@ -59,7 +59,7 @@
       "label": "NU Core Values",
       "type": "longtext",
       "required": true,
-      "hint": "The NU core values the activity promotes, each with a brief explanation of how the activity aligns with it."
+      "hint": "The NU core values (Resilience, Patriotism, Innovation, Integrity, Compassion) that best fit the activity, each with a brief explanation of how the activity promotes it."
     },
     {
       "id": "sdgs",

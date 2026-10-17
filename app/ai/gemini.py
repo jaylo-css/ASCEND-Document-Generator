@@ -21,7 +21,7 @@ class GeminiProvider(AIProvider):
         if not self.api_key:
             raise ProviderError("GEMINI_API_KEY is not set")
 
-    def build_request(self, *, tpl, values, skipped, missing, message, images, history) -> dict:
+    def build_request(self, *, tpl, values, skipped, missing, message, images, history, context="") -> dict:
         contents = []
         for turn in history[-10:]:
             role = "model" if turn.get("role") == "assistant" else "user"
@@ -34,14 +34,16 @@ class GeminiProvider(AIProvider):
             parts.append({"inline_data": {"mime_type": img.mime, "data": base64.b64encode(img.data).decode()}})
         contents.append({"role": "user", "parts": parts})
         return {
-            "systemInstruction": {"parts": [{"text": system_prompt(tpl, values, skipped, missing, [i.id for i in images])}]},
+            "systemInstruction": {"parts": [{"text": system_prompt(tpl, values, skipped, missing, [i.id for i in images],
+                                                                   context)}]},
             "contents": contents,
             "generationConfig": {"responseMimeType": "application/json", "temperature": 0.2},
         }
 
-    def extract(self, *, tpl, values, skipped, missing, message, images: list[ImageInput], history) -> ExtractionResult:
+    def extract(self, *, tpl, values, skipped, missing, message, images: list[ImageInput], history,
+                context="") -> ExtractionResult:
         body = self.build_request(tpl=tpl, values=values, skipped=skipped, missing=missing,
-                                  message=message, images=images, history=history)
+                                  message=message, images=images, history=history, context=context)
         try:
             r = httpx.post(API.format(model=self.model), json=body, timeout=90,
                            headers={"x-goog-api-key": self.api_key})
@@ -58,4 +60,6 @@ class GeminiProvider(AIProvider):
             data = parse_json(text)
         except (KeyError, IndexError, ValueError) as e:
             raise ProviderError(f"Unexpected Gemini response: {e}") from e
-        return ExtractionResult(updates=data.get("updates") or {}, reply=str(data.get("reply") or ""))
+        remember = data.get("remember") or []
+        return ExtractionResult(updates=data.get("updates") or {}, reply=str(data.get("reply") or ""),
+                                remember=remember if isinstance(remember, list) else [])

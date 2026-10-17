@@ -31,6 +31,7 @@ Maria Reyes, BSCpE 1
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(main, "UPLOAD_DIR", tmp_path)
+    monkeypatch.setattr(main.events, "DB_PATH", tmp_path / "events.db")
     monkeypatch.setenv("AI_PROVIDER", "offline")
     return TestClient(main.app)
 
@@ -264,3 +265,84 @@ def test_prompt_uses_each_forms_own_rules():
     report = system_prompt(get_template("post_activity_report"), {}, [], [], [])
     assert "future tense" in proposal and '"summary"' not in proposal
     assert 'Write "summary"' in report and "future tense" not in report
+
+
+def test_event_saves_context_files_and_drafts(client):
+    ev = client.post("/api/events", json={"name": "Arduino Workshop", "notes": "Venue: Room 401"}).json()
+    eid = ev["id"]
+    assert ev["notes"][0]["text"] == "Venue: Room 401"
+    client.post(f"/api/events/{eid}/notes", json={"text": "Date: October 24, 2026"})
+    up = client.post("/api/uploads", files=[("files", ("notes.docx", _docx_bytes(NOTES), "application/octet-stream"))]).json()
+    ev = client.post(f"/api/events/{eid}/files", json={"ids": [up[0]["id"], "nope"]}).json()
+    assert [f["kind"] for f in ev["files"]] == ["document"]
+    state = {"values": {"event_name": "Arduino Workshop"}}
+    assert client.put(f"/api/events/{eid}/documents/activity_proposal", json={"state": state, "chat": []}).status_code == 200
+    listed = client.get("/api/events").json()
+    assert listed[0]["id"] == eid and listed[0]["notes"] == 2 and listed[0]["documents"] == ["activity_proposal"]
+    nid = ev["notes"][0]["id"]
+    assert len(client.delete(f"/api/events/{eid}/notes/{nid}").json()["notes"]) == 1
+    client.delete(f"/api/events/{eid}")
+    assert client.get(f"/api/events/{eid}").status_code == 404
+
+
+def test_fill_from_event_uses_saved_information(client):
+    eid = client.post("/api/events", json={"name": "Arduino Workshop", "notes": NOTES}).json()["id"]
+    r = client.post("/api/chat", json={"template_id": "post_activity_report", "event_id": eid, "generate": True,
+                                       "message": "Fill in this form using the saved event information."})
+    v = r.json()["state"]["values"]
+    assert v["event_name"] == "Arduino Basics Workshop" and v["venue"] == "Room 401"
+    assert ["Juan Dela Cruz", "BSCpE 1"] in v["attendance"]
+
+
+def test_assistant_remembers_new_facts_for_the_event(client, monkeypatch):
+    seen = {}
+
+    def fake_post(url, json=None, timeout=None, headers=None):
+        seen["system"] = json["systemInstruction"]["parts"][0]["text"]
+        reply = {"updates": {}, "reply": "Noted.", "remember": ["The speaker is Engr. Cruz."]}
+        return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": __import__("json").dumps(reply)}]}}]})
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    eid = client.post("/api/events", json={"name": "Arduino Workshop", "notes": "Venue: Room 401"}).json()["id"]
+    client.put(f"/api/events/{eid}/documents/activity_proposal",
+               json={"state": {"values": {"budget_source": "Organization funds"}}, "chat": []})
+    r = client.post("/api/chat", json={"template_id": "post_activity_report", "event_id": eid, "message": "Engr. Cruz spoke"},
+                    headers={"X-Gemini-Key": "k"})
+    assert r.json()["remembered"] == ["The speaker is Engr. Cruz."]
+    assert "Venue: Room 401" in seen["system"] and "Source of Budget: Organization funds" in seen["system"]
+    notes = client.get(f"/api/events/{eid}").json()["notes"]
+    assert notes[-1]["text"] == "The speaker is Engr. Cruz." and notes[-1]["source"] == "assistant"
+
+
+def test_financial_report_export(client):
+    state = {"values": {"academic_year": "2025-2026", "opening_balance": "₱5,000.00",
+                        "sources_of_fund": [["Membership fees", "120 members", "₱12,000.00"], ["Sponsor", "XYZ", "₱3,000.00"]],
+                        "liquidation": [["Arduino Workshop", "Oct 24, 2026", "₱6,500.00"]]},
+             "signatories": {"treasurer": "Ana Cruz"}}
+    r = client.post("/api/export/docx", json={"template_id": "financial_report", "state": state})
+    assert r.status_code == 200 and "Financial Report - A.Y. 2025-2026" in r.headers["content-disposition"]
+    d = Document(io.BytesIO(r.content))
+    text = doc_text(r.content)
+    assert "{{" not in text and "Opening Balance/Fund A.Y. 2025-2026" in text  # A.Y. defaults to the academic year
+    sources, liquidation = d.tables[1], d.tables[2]
+    assert sources.rows[-1].cells[-1].text == "₱15,000.00" and liquidation.rows[-1].cells[-1].text == "₱6,500.00"
+    for name in ("Ana Cruz", "Engr. Mary Jane F. Somao-i, MSCpE", "Dr. Corazon B. Rebong, PCpE", "Co-Adviser", "Auditor"):
+        assert name in text
+
+
+def test_proposal_prompt_knows_nu_core_values():
+    from app.ai.prompt import system_prompt
+    text = system_prompt(get_template("activity_proposal"), {}, [], [], [])
+    assert "Resilience, Patriotism, Innovation, Integrity and Compassion" in text
+
+
+def test_no_duplicate_or_echoed_facts(client, monkeypatch):
+    def fake_post(url, json=None, timeout=None, headers=None):
+        reply = {"updates": {}, "reply": "ok", "remember": ["Venue: Room 401.", "38 students attended."]}
+        return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": __import__("json").dumps(reply)}]}}]})
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    eid = client.post("/api/events", json={"name": "W", "notes": "Venue: Room 401"}).json()["id"]
+    body = {"template_id": "post_activity_report", "event_id": eid, "message": "x"}
+    assert client.post("/api/chat", json={**body, "generate": True}, headers={"X-Gemini-Key": "k"}).json()["remembered"] == []
+    assert client.post("/api/chat", json=body, headers={"X-Gemini-Key": "k"}).json()["remembered"] == ["38 students attended."]

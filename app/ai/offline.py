@@ -52,7 +52,7 @@ def _key_for(label: str, tpl) -> str | None:
 class OfflineProvider(AIProvider):
     name = "offline"
 
-    def extract(self, *, tpl, values, skipped, missing, message, images, history) -> ExtractionResult:
+    def extract(self, *, tpl, values, skipped, missing, message, images, history, context="") -> ExtractionResult:
         updates: dict = {}
         tables: dict[str, list] = {}
         loose: list[str] = []

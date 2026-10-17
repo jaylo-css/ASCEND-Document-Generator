@@ -173,7 +173,10 @@ def _inline_text(m: re.Match, ctx: Context, blank: str = BLANK_LINE) -> str:
     if name == "rows":
         return ""
     v = ctx.values.get(name)
-    return v if isinstance(v, str) and v else blank
+    if isinstance(v, str) and v:
+        return v
+    f = ctx.tpl.field(name)
+    return f.get("blank", blank) if f else blank
 
 
 def _fill_inline(p: Paragraph, ctx: Context, blank: str = BLANK_LINE):
@@ -499,6 +502,23 @@ def _run_css(r) -> str:
         css.append("text-decoration:underline")
     if r.font.size:
         css.append(f"font-size:{r.font.size.pt * 4 / 3:.1f}px")
+    color = r.font.color.rgb if r.font.color is not None and r.font.color.type is not None else None
+    if color is not None:
+        css.append(f"color:#{color}")
+    return ";".join(css)
+
+
+def _mark_css(p_el) -> str:
+    """Font size/weight of a paragraph's mark: how text typed into that (empty) cell will look."""
+    mark = p_el.find(qn("w:pPr") + "/" + qn("w:rPr")) if p_el is not None else None
+    if mark is None:
+        return ""
+    css = []
+    sz = mark.find(qn("w:sz"))
+    if sz is not None:
+        css.append(f"font-size:{int(sz.get(qn('w:val'))) * 2 / 3:.1f}px")  # half-points -> px
+    if mark.find(qn("w:b")) is not None and mark.find(qn("w:b")).get(qn("w:val")) not in ("0", "false"):
+        css.append("font-weight:700")
     return ";".join(css)
 
 
@@ -751,6 +771,28 @@ def _tc_info(tc) -> tuple[int, str | None, str]:
     return span, vmerge, ";".join(css)
 
 
+def _border_css(el) -> str:
+    if el is None or el.get(qn("w:val")) in (None, "nil", "none"):
+        return "none"
+    width = max(int(el.get(qn("w:sz")) or 4) / 8, 0.5) * 4 / 3  # eighths of a point -> px
+    color = el.get(qn("w:color"))
+    return f"{width:.1f}px solid #{color if color and color != 'auto' else '000'}"
+
+
+def _table_borders(tbl, style_el) -> dict:
+    """Outer and inner borders of a table: its own tblBorders first, then its style's."""
+    out = {}
+    for side in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        el = None
+        for src in (tbl.tblPr, style_el):
+            b = src.find(".//" + qn("w:tblBorders")) if src is not None else None
+            if b is not None and b.find(qn(f"w:{side}")) is not None:
+                el = b.find(qn(f"w:{side}"))
+                break
+        out[side] = _border_css(el)
+    return out
+
+
 def _html_table(t: Table, ctx: Context, numbering: _Numbering) -> str:
     """A table of the form itself: column widths, shading and merged cells as in Word. A row holding
     {{rows:field}} becomes the editable rows of that table field (header rows above, totals below)."""
@@ -760,7 +802,7 @@ def _html_table(t: Table, ctx: Context, numbering: _Numbering) -> str:
     style_el = t.style.element if t.style is not None else None
     sp = style_el.find(qn("w:pPr") + "/" + qn("w:spacing")) if style_el is not None else None
     after = _twips(sp.get(qn("w:after"))) if sp is not None and sp.get(qn("w:after")) is not None else None
-    bordered = any(x is not None and x.find(".//" + qn("w:tblBorders")) is not None for x in (tbl.tblPr, style_el))
+    borders = _table_borders(tbl, style_el)
 
     rows = [[(tc, *_tc_info(tc)) for tc in tr.tc_lst] for tr in tbl.tr_lst]
     starts = []  # grid column where each cell starts, for vertical merges
@@ -790,6 +832,7 @@ def _html_table(t: Table, ctx: Context, numbering: _Numbering) -> str:
                 for k, (tc, span, _, css) in enumerate(cells):
                     p0 = tc.find(qn("w:p"))
                     align = _par_style(Paragraph(p0, t))[0].split(";")[0] if p0 is not None else ""
+                    align += ";" + _mark_css(p0)
                     val = row[k] if row and k < len(row) else ""
                     tds.append(f'<td{f" colspan={span}" if span > 1 else ""} style="{css};{align}" '
                                f'class="wcell" contenteditable="plaintext-only" data-field="{E(f["id"])}" '
@@ -811,8 +854,11 @@ def _html_table(t: Table, ctx: Context, numbering: _Numbering) -> str:
 
     cols = "".join(f'<col style="width:{w:.0f}px">' for w in grid)
     left = _twips(ind.get(qn("w:w"))) if ind is not None else 0
-    css = f"width:{sum(grid):.0f}px;margin-left:{left:.0f}px"
-    cls = "wtable" + (" grid" if bordered else "")
+    floating = tbl.tblPr is not None and tbl.tblPr.find(qn("w:tblpPr")) is not None
+    css = (f"width:{sum(grid):.0f}px;" + ("margin:24px 0 0 auto;" if floating else f"margin-left:{left:.0f}px;")
+           + f"border-top:{borders['top']};border-left:{borders['left']};border-bottom:{borders['bottom']};"
+           f"border-right:{borders['right']};--bh:{borders['insideH']};--bv:{borders['insideV']}")
+    cls = "wtable"
     if not field:
         return f'<table class="{cls}" style="{css}"><colgroup>{cols}</colgroup><tbody>{"".join(head)}</tbody></table>'
     return (f'<table class="{cls}" style="{css}" data-table="{E(field["id"])}"><colgroup>{cols}</colgroup>'

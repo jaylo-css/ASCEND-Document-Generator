@@ -25,8 +25,24 @@ def describe_fields(tpl: Template) -> str:
     return "\n".join(lines)
 
 
-def system_prompt(tpl: Template, values: dict, skipped: list[str], missing: list[dict], image_ids: list[str]) -> str:
+EVENT_SECTION = """
+EVENT INFORMATION (saved by the organization for the event this document is for; it counts as facts the user gave)
+{context}
+
+EVENT MEMORY
+- Use the event information above to fill every field you can, even when the user's message does not repeat it.
+- When the user's message, images or files contain a new fact about the event that is not saved yet (date, time,
+  venue, people and their roles, number of participants, amounts, outcomes, feedback), add it to "remember" as
+  short standalone sentences; they are saved to the event for its other documents. Do not repeat saved facts.
+"""
+
+
+def system_prompt(tpl: Template, values: dict, skipped: list[str], missing: list[dict], image_ids: list[str],
+                  context: str = "") -> str:
+    """context: what is saved about the document's event (see app/events.py); "" for a quick draft."""
     filled = {k: v for k, v in values.items() if v}
+    event = EVENT_SECTION.format(context=context) if context else ""
+    remember = ', "remember": ["<new fact about the event>"]' if context else ""
     office = f'{tpl.schema["office"]} ' if tpl.schema.get("office") else ""
     rules = "\n".join(f"- {r}" for r in tpl.schema.get("ai_instructions", [])) or "- (none)"
     return f"""You are the document assistant of ASCEnD (Academic Society of Computer Engineering Discipline, NU Fairview).
@@ -42,7 +58,7 @@ CURRENT VALUES (already in the document)
 SKIPPED BY THE USER (do not ask about these again): {json.dumps(skipped)}
 STILL MISSING: {json.dumps([m["id"] for m in missing])}
 IMAGES ATTACHED TO THIS MESSAGE (ids): {json.dumps(image_ids)}
-
+{event}
 YOUR JOB
 1. Extract every field value you can from the user's message, images and files. Only use facts the user gave; never invent names, dates, numbers, amounts or venues.
 2. Text between "--- Attached file: ... ---" markers was extracted from an uploaded file; treat it as notes from the user and pull details, tables and lists out of it. Images labelled "page N of <file>" are pages of an uploaded document: put a page into an image field only when that page itself belongs there; otherwise only read it.
@@ -54,7 +70,7 @@ RULES FOR THIS FORM
 {rules}
 
 Respond with JSON only, exactly this shape:
-{{"updates": {{"<field_id>": <value>}}, "reply": "<message to the user>"}}"""
+{{"updates": {{"<field_id>": <value>}}, "reply": "<message to the user>"{remember}}}"""
 
 
 def parse_json(text: str) -> dict:

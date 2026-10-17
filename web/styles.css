@@ -13,7 +13,7 @@
   --ok: #1f7a4d;
   --radius: 10px;
   --ui: "Inter", "Aptos", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
-  --docfont: "Aptos", "Inter", "Segoe UI", Arial, sans-serif;
+  --docfont: "Aptos", Calibri, Carlito, "Segoe UI", "Inter", Arial, sans-serif;  /* Aptos is rarely installed in browsers; Calibri/Carlito are closest in width */
 }
 
 * { box-sizing: border-box; }
@@ -218,7 +218,8 @@ button.ghost:hover { background: var(--navy-soft); }
 .page .dfloat.crop { position: absolute; }
 /* the form's own tables (widths, shading and merges come from the template) */
 .wtable { border-collapse: collapse; table-layout: fixed; margin-bottom: 0; }
-.wtable.grid > * > tr > td:not(.row-x) { border: 1px solid #000; }
+/* inner borders come from the template via --bh / --bv; the outer border is on the table */
+.wtable > * > tr > td:not(.row-x) { border-top: var(--bh); border-bottom: var(--bh); border-left: var(--bv); border-right: var(--bv); }
 .wtable td { padding: 0 7px; }
 .wtable td.wcell { overflow-wrap: anywhere; }
 .wtable td.wcell { white-space: pre-wrap; outline: none; min-height: 1.3em; height: 1.4em; }
@@ -320,3 +321,49 @@ button.ghost:hover { background: var(--navy-soft); }
   .annex-tag.pending { display: none; }
   @page { size: A4; margin: 0; }
 }
+
+/* ---------- events */
+.event-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 18px; border-bottom: 1px solid var(--line); background: var(--gold-soft);
+}
+.event-bar .ev-info { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.event-bar .ev-info b { color: var(--navy); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.event-bar .ev-info span { font-size: 12px; color: var(--muted); }
+.event-bar button { padding: 5px 10px; font-size: 12px; }
+.muted { color: var(--muted); font-weight: 400; }
+.ev-dialog { width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto; }
+.ev-label { display: block; font-size: 13px; font-weight: 600; color: var(--navy); margin-bottom: 10px; }
+.ev-label input, .ev-label textarea, .ev-dialog textarea {
+  display: block; width: 100%; margin-top: 4px; font: inherit; font-size: 13px; font-weight: 400; color: var(--ink);
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; resize: vertical;
+}
+.ev-h { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; color: var(--navy); margin: 14px 0 6px; }
+.ev-h .muted { text-transform: none; letter-spacing: 0; }
+.ev-list { list-style: none; margin: 0 0 8px; padding: 0; max-height: 220px; overflow-y: auto; }
+.ev-list li { display: flex; align-items: flex-start; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.ev-list li.muted { border: 0; }
+.ev-list .ev-text { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ev-tag {
+  display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 4px;
+  background: var(--navy-soft); color: var(--navy); font-size: 10px; font-weight: 700; vertical-align: 1px;
+}
+.ev-x { border: 0; background: transparent; color: #9aa2b3; font-size: 16px; line-height: 1; padding: 0 4px; }
+.ev-x:hover { color: var(--danger); }
+.ev-row { display: flex; gap: 8px; margin: 6px 0 4px; }
+.ev-attach {
+  cursor: pointer; display: inline-flex; align-items: center; background: transparent; border: 1px solid var(--line);
+  color: var(--navy); border-radius: 8px; padding: 6px 12px; font-weight: 500; font-size: 14px;
+}
+.ev-attach:hover { background: var(--navy-soft); }
+.ev-docs { display: flex; flex-direction: column; gap: 6px; }
+.ev-doc {
+  display: flex; justify-content: space-between; gap: 8px; text-align: left; padding: 8px 10px;
+  border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); font-size: 13px;
+}
+.ev-doc span { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.ev-doc:hover { background: var(--navy-soft); }
+.ev-doc.current { border-color: var(--navy-2); }
+.ev-warn { margin-top: 12px; padding: 8px 10px; border-radius: 8px; background: #fdecec; color: var(--danger) !important; font-size: 12px; }
+button.ghost.danger { color: var(--danger); }
+button.ghost.danger:hover { background: #fdecec; }

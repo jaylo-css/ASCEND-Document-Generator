@@ -11,7 +11,25 @@ Forms included:
 - **SDAO Post-Activity Report** (from `source_forms/POST-EVENT-REPORT.docx`)
 - **ASCEnD Activity Proposal** (from `source_forms/ACTIVITY-PROPOSAL.docx`): the form's own styled
   tables (Activity Overview, Budget, Programme Flow) are filled row by row and the budget TOTAL
-  is added up automatically.
+  is added up automatically. The AI picks the fitting NU core values (Resilience, Patriotism,
+  Innovation, Integrity, Compassion).
+- **SDAO Financial Report** (ICB-SDA-2026-007, from `source_forms/FINANCIAL-REPORT.pdf`): SDAO only
+  gave a PDF, so `tools/build_financial_report_template.py` rebuilds it in Word with the PDF's own
+  letterhead and watermark images (`tools/assets/financial_report/`).
+
+## Events
+
+Pick **Event → + New event…** at the top to create one (e.g. "Arduino Basics Workshop 2026") and
+save what you know about it: notes, and files such as the concept paper, program, receipts or photos.
+Every form opened under that event can then be filled with **Fill from event info**, and its draft is
+saved inside the event, so the proposal written before the activity and the post-activity report
+written after it share the same facts. New facts you tell the assistant in an event's chat (attendance,
+speakers, ratings...) are added to the event automatically (marked "AI" under Event info).
+"Quick draft (no event)" works as before and stays in your browser only.
+
+Events are shared by everyone who can open the app (this tool is for ASCEnD only; set
+`ASCEND_PASSWORD` when it is online). They are stored in SQLite at `data/ascend.db`
+(`ASCEND_DB` to change), next to the uploaded files in `data/uploads/`.
 
 ![layout](docs/screenshot.png)
 
@@ -50,7 +68,9 @@ images, but it does read the text of uploaded documents. Get a free Gemini key a
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Any Gemini model that accepts images |
 | `AI_PROVIDER` | auto | `gemini` or `offline`; auto picks gemini when a key is set |
 | `ASCEND_CONFIG` | `config.json` | Path to the signatories/organization config |
-| `ASCEND_UPLOAD_DIR` | `data/uploads` | Where uploaded images are kept |
+| `ASCEND_UPLOAD_DIR` | `data/uploads` | Where uploaded images and documents are kept |
+| `ASCEND_DB` | `data/ascend.db` | SQLite file holding the events |
+| `ASCEND_PASSWORD` | (none) | Shared password for the whole app (recommended when online) |
 
 Tests: `pip install pytest && python -m pytest -q`
 
@@ -66,8 +86,11 @@ formats work) and a `render.yaml` blueprint.
 3. Deploy. The app is served at `https://ascend-docgen-xxxx.onrender.com`.
 
 Every push to `main` redeploys. On the free plan the app sleeps after 15 minutes
-without visitors (the next visit takes about a minute to wake up), and uploaded
-files are wiped when it restarts, so download each report once it is done.
+without visitors (the next visit takes about a minute to wake up), and **its disk is
+wiped on every restart or redeploy: events and uploaded files are lost**. For events to
+be remembered online, give the service a persistent disk mounted at `/app/data`
+(Render's paid Starter plan, about $7/month plus $0.25/GB), or run the app on a computer
+that stays on.
 `ASCEND_PASSWORD` works on any host; when it is unset the app is open.
 
 ## Signatories (`config.json`)
@@ -151,6 +174,7 @@ app/main.py          API routes, uploads, export
 app/registry.py      template registry, field validation, missing-field logic
 app/engine.py        docx filling + HTML preview
 app/files.py         reading uploaded documents (PDF, Word, PowerPoint, Excel, text)
+app/events.py        events: saved notes, files and drafts per activity (SQLite)
 app/ai/              provider interface, Gemini, offline parser, prompt
 templates/<id>/      schema.json + template.docx per form
 source_forms/        original blank SDAO forms

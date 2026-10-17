@@ -21,7 +21,7 @@ from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import engine, files
+from . import engine, events, files
 from .ai.base import ImageInput, ProviderError, get_provider
 from .registry import ROOT, get_template, list_templates, load_config, merge_updates, missing_fields, resolved_values
 
@@ -71,6 +71,27 @@ class ChatRequest(DocRequest):
     image_ids: list[str] = Field(default_factory=list)
     file_ids: list[str] = Field(default_factory=list)
     history: list[dict] = Field(default_factory=list)
+    event_id: str = ""        # use (and add to) this event's saved information
+    generate: bool = False    # "fill this form from the event": also show the AI the event's images
+
+
+class EventIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    notes: str = Field("", max_length=20000)
+
+
+class NoteIn(BaseModel):
+    text: str = Field(min_length=1, max_length=20000)
+
+
+class FilesIn(BaseModel):
+    ids: list[str] = Field(max_length=50)
+    names: dict[str, str] = Field(default_factory=dict)  # upload id -> original file name (images)
+
+
+class DocumentIn(BaseModel):
+    state: DocState = Field(default_factory=DocState)
+    chat: list[dict] = Field(default_factory=list, max_length=200)
 
 
 def _template(tid: str):
@@ -90,7 +111,7 @@ def health():
         provider = get_provider().name
     except Exception as e:  # misconfigured provider
         provider = f"error: {e}"
-    return {"ok": True, "ai_provider": provider, "pdf_export": bool(_soffice())}
+    return {"ok": True, "ai_provider": provider, "pdf_export": bool(_soffice()), "protected": bool(PASSWORD)}
 
 
 @app.get("/api/templates")
@@ -141,7 +162,13 @@ def chat(req: ChatRequest, x_gemini_key: str = Header("", max_length=200)):
             images.append(ImageInput(id=iid, mime=mimetypes.guess_type(path.name)[0] or "image/png",
                                      data=path.read_bytes(), name=path.name, source=source))
 
-    images = []
+    images, context, event = [], "", None
+    if req.event_id:
+        event = _event(req.event_id)
+        context = events.context_text(event, UPLOAD_DIR, tpl.id, cfg)
+        if req.generate:
+            for iid, name, source in events.context_images(event):
+                add_image(iid, source)
     for iid in req.image_ids:
         add_image(iid)
     for fid in req.file_ids:
@@ -154,14 +181,120 @@ def chat(req: ChatRequest, x_gemini_key: str = Header("", max_length=200)):
             add_image(iid, source=f"page {n} of {record['name']}")
     try:
         provider = get_provider(api_key=x_gemini_key.strip() or None)
+        if provider.name == "offline" and req.generate and context:
+            message = context + "\n\n" + message  # the rule-based parser reads labelled notes
         result = provider.extract(tpl=tpl, values=resolved_values(tpl, state, cfg),
                                   skipped=state["skipped"], missing=missing_fields(tpl, state, cfg),
-                                  message=message, images=images, history=req.history)
+                                  message=message, images=images, history=req.history, context=context)
     except (ProviderError, ValueError) as e:
         raise HTTPException(502, str(e))
     new_state, changed = merge_updates(tpl, state, result.updates)
-    return {"state": new_state, "reply": result.reply, "changed": changed,
+    # facts learned in this chat go back into the event (not when filling *from* the event: nothing new there)
+    remembered = [] if not event or req.generate else _new_facts(event, result.remember)
+    if remembered:
+        events.update_event(event["id"], lambda e: e["notes"].extend(
+            events.new_note(r, source="assistant") for r in remembered))
+    return {"state": new_state, "reply": result.reply, "changed": changed, "remembered": remembered,
             "missing": missing_fields(tpl, new_state, cfg), "provider": provider.name}
+
+
+# ---------------------------------------------------------------- events
+
+def _new_facts(event: dict, facts: list) -> list[str]:
+    """Facts the assistant wants to remember, minus ones already in the event's notes."""
+    norm = lambda s: re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
+    saved = " | ".join(norm(n["text"]) for n in event.get("notes", []))
+    out = []
+    for f in facts[:10]:
+        f = str(f).strip()[:1000]
+        if f and norm(f) not in saved and f not in out:
+            out.append(f)
+    return out
+
+
+def _event(eid: str) -> dict:
+    event = events.get_event(eid) if re.fullmatch(r"\w+", eid or "") else None
+    if not event:
+        raise HTTPException(404, "Event not found")
+    return event
+
+
+def _changed(eid: str, change) -> dict:
+    event = events.update_event(_event(eid)["id"], change)
+    if not event:
+        raise HTTPException(404, "Event not found")
+    return event
+
+
+@app.get("/api/events")
+def list_events():
+    return events.list_events()
+
+
+@app.post("/api/events")
+def create_event(body: EventIn):
+    return events.create_event(body.name.strip(), body.notes)
+
+
+@app.get("/api/events/{eid}")
+def get_event(eid: str):
+    return _event(eid)
+
+
+@app.patch("/api/events/{eid}")
+def rename_event(eid: str, body: EventIn):
+    return _changed(eid, lambda e: e.update(name=body.name.strip()))
+
+
+@app.delete("/api/events/{eid}")
+def delete_event(eid: str):
+    _event(eid)
+    events.delete_event(eid)
+    return {"ok": True}
+
+
+@app.post("/api/events/{eid}/notes")
+def add_note(eid: str, body: NoteIn):
+    return _changed(eid, lambda e: e["notes"].append(events.new_note(body.text)))
+
+
+@app.delete("/api/events/{eid}/notes/{nid}")
+def delete_note(eid: str, nid: str):
+    return _changed(eid, lambda e: e.update(notes=[n for n in e["notes"] if n["id"] != nid]))
+
+
+@app.post("/api/events/{eid}/files")
+def add_files(eid: str, body: FilesIn):
+    """Attach already-uploaded files (ids from /api/uploads) to the event's information."""
+    found = []
+    for uid in body.ids:
+        if not re.fullmatch(r"\w+", uid):
+            continue
+        doc = files.load_document(uid, UPLOAD_DIR)
+        if doc:
+            rec = doc[0]
+            found.append({"id": uid, "name": rec["name"], "kind": "document", "pages": rec.get("pages", [])})
+        elif list(UPLOAD_DIR.glob(uid + ".*")):
+            found.append({"id": uid, "name": (body.names.get(uid) or uid)[:200], "kind": "image"})
+
+    def change(e):
+        known = {f["id"] for f in e["files"]}
+        e["files"].extend(f for f in found if f["id"] not in known)
+    return _changed(eid, change)
+
+
+@app.delete("/api/events/{eid}/files/{fid}")
+def delete_file(eid: str, fid: str):
+    return _changed(eid, lambda e: e.update(files=[f for f in e["files"] if f["id"] != fid]))
+
+
+@app.put("/api/events/{eid}/documents/{tid}")
+def save_document(eid: str, tid: str, body: DocumentIn):
+    """Save one form's draft (values, signatories, chat) inside the event."""
+    _template(tid)
+    doc = {"state": body.state.model_dump(), "chat": body.chat[-60:], "updated_at": events._now()}
+    _changed(eid, lambda e: e["documents"].__setitem__(tid, doc))
+    return {"ok": True}
 
 
 @app.post("/api/uploads")

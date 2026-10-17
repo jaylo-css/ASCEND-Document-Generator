@@ -27,6 +27,7 @@ class ImageInput:
 class ExtractionResult:
     updates: dict = field(default_factory=dict)  # field_id -> value (see registry.normalize_value)
     reply: str = ""                              # what the assistant says back in chat
+    remember: list = field(default_factory=list)  # new facts about the event, saved as event notes
 
 
 class AIProvider(ABC):
@@ -34,7 +35,8 @@ class AIProvider(ABC):
 
     @abstractmethod
     def extract(self, *, tpl: Template, values: dict, skipped: list[str], missing: list[dict],
-                message: str, images: list[ImageInput], history: list[dict]) -> ExtractionResult:
+                message: str, images: list[ImageInput], history: list[dict], context: str = "") -> ExtractionResult:
+        """context: what is saved about the event this document belongs to ("" if none)."""
         ...
 
 

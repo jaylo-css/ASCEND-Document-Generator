@@ -1,0 +1,92 @@
+{
+  "id": "financial_report",
+  "name": "Financial Report",
+  "office": "SDAO",
+  "description": "SDAO Financial Report (ICB-SDA-2026-007) required for the renewal of recognition: balances, sources of fund, summary of liquidation and signatories.",
+  "file": "template.docx",
+  "output_name": "Financial Report - A.Y. {academic_year}",
+  "greeting": "Hi! Let's fill out the SDAO Financial Report for the renewal of recognition. Tell me the academic year, the opening balance, where the organization's money came from (membership fees, sponsors, fund-raising...) and what was spent on which events. You can also upload the treasurer's records, receipts or a spreadsheet.\n\nYou can also click any part of the document on the right to edit it directly.",
+  "ai_instructions": [
+    "This is a financial statement: copy amounts, dates and names exactly as the user gives them and never estimate or invent any figure.",
+    "Write money as ₱12,000.00. The TOTAL rows are added up automatically, so do not add them as rows.",
+    "\"sources_of_fund\": one row per source of money (Source, Other Details such as the number of members or the sponsor, Amount).",
+    "\"liquidation\": one row per event or expense paid (Name of Event/Expenses, Date of Event/Payment, Amount). Use the liquidated events of this organization when the user mentions them.",
+    "\"closing_balance\": if the user does not give it but the opening balance, sources and expenses are all known, compute opening balance + total sources − total liquidation, and say in the reply that you computed it so the treasurer can check it.",
+    "\"opening_balance_ay\" is the academic year the opening balance belongs to; it is usually the same as \"academic_year\"."
+  ],
+  "fields": [
+    {
+      "id": "academic_year",
+      "label": "Academic Year",
+      "type": "text",
+      "required": true,
+      "blank": "______________",
+      "hint": "Academic year covered by the report, e.g. 2025–2026."
+    },
+    {
+      "id": "organization_name",
+      "label": "Name of Organization",
+      "type": "text",
+      "required": true,
+      "default": "{organization.name}"
+    },
+    {
+      "id": "opening_balance_ay",
+      "label": "Opening Balance A.Y.",
+      "type": "text",
+      "default": "{academic_year}",
+      "blank": "_________________",
+      "hint": "Academic year of the opening balance; defaults to the report's academic year."
+    },
+    {
+      "id": "opening_balance",
+      "label": "Opening Balance",
+      "type": "text",
+      "required": true,
+      "hint": "Funds at the start of the academic year, e.g. ₱5,000.00."
+    },
+    {
+      "id": "closing_balance",
+      "label": "Closing Balance",
+      "type": "text",
+      "required": true,
+      "hint": "Funds at the end: opening balance + total sources − total liquidation."
+    },
+    {
+      "id": "submission_date",
+      "label": "Date of Submission",
+      "type": "text",
+      "required": true,
+      "hint": "Date the report is submitted to SDAO."
+    },
+    {
+      "id": "sources_of_fund",
+      "label": "Sources of Fund",
+      "type": "table",
+      "required": true,
+      "columns": ["Source", "Other Details", "Amount"],
+      "total_column": "Amount",
+      "currency": "₱",
+      "hint": "Each source of money: membership fees, sponsorships, fund-raising, school subsidy..."
+    },
+    {
+      "id": "liquidation",
+      "label": "Summary of Liquidation",
+      "type": "table",
+      "required": true,
+      "columns": ["Name of Event/Expenses", "Date of Event/Payment", "Amount"],
+      "total_column": "Amount",
+      "currency": "₱",
+      "hint": "Each event or expense paid during the year, with its date and amount."
+    }
+  ],
+  "signatories": {
+    "treasurer": "Treasurer",
+    "auditor": "Auditor",
+    "president": "President",
+    "adviser_2": "Co-Adviser",
+    "adviser_1": "Adviser",
+    "program_chair": "Program Chair/Supervisor of the Unit",
+    "dean": "School Dean/Unit Head"
+  }
+}
