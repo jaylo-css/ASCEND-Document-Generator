@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ASCEnD DocGen</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="mark">A</div>
+      <div>
+        <div class="brand-name">ASCEnD DocGen</div>
+        <div class="brand-sub">SDAO forms, filled from your notes</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <label class="tpl-pick">
+        <span>Form</span>
+        <select id="template"></select>
+      </label>
+      <span class="badge" id="provider" title="AI provider"></span>
+    </div>
+  </header>
+
+  <main class="split">
+    <section class="pane chat" aria-label="Assistant">
+      <div class="pane-head">
+        <h2>Assistant</h2>
+        <button class="ghost" id="new-doc" title="Clear this form and start over">New document</button>
+      </div>
+      <div class="log" id="log" aria-live="polite"></div>
+      <div class="needs" id="needs" hidden></div>
+      <form class="composer" id="composer">
+        <div class="thumbs" id="thumbs"></div>
+        <textarea id="input" rows="3" placeholder="Paste your event notes, or drop photos and files (PDF, Word, PowerPoint, Excel)…"></textarea>
+        <div class="composer-row">
+          <label class="attach" title="Attach images or documents">
+            <input type="file" id="files" accept="image/*,.pdf,.docx,.doc,.odt,.pptx,.ppt,.odp,.xlsx,.xls,.ods,.txt,.md,.csv,.tsv,.json,.rtf" multiple hidden>
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M21 12.5l-8.5 8.5a5.5 5.5 0 01-7.8-7.8l9-9a3.7 3.7 0 015.2 5.2l-9 9a1.8 1.8 0 01-2.6-2.6l8.3-8.3"/></svg>
+            Attach
+          </label>
+          <span class="hint">Enter to send · Shift+Enter for a new line</span>
+          <button type="submit" class="primary" id="send">Send</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="pane doc" aria-label="Document preview">
+      <div class="pane-head doc-head">
+        <div>
+          <h2 id="doc-title">Preview</h2>
+          <div class="progress"><div class="bar"><span id="bar"></span></div><span id="progress-text"></span></div>
+        </div>
+        <div class="doc-actions">
+          <button class="ghost" id="dl-pdf">PDF</button>
+          <button class="primary gold" id="dl-docx">Download DOCX</button>
+        </div>
+      </div>
+      <div class="meta" id="meta"></div>
+      <div class="pages-wrap" id="pages-wrap">
+        <div class="pages" id="pages"></div>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

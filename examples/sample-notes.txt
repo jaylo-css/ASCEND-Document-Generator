@@ -1,0 +1,15 @@
+Event: Arduino Basics Workshop 2026
+Date: October 10, 2026, 1:00 PM to 5:00 PM
+Venue: Room 401, NU Fairview
+The workshop introduced 45 first-year CpE students to breadboarding and Arduino programming. Engr. Maria Santos was the resource speaker. Participants built a blinking LED and a traffic light circuit.
+
+Program flow:
+1:00 PM - Registration (Secretariat)
+1:30 PM - Opening Remarks by Mr. Jhamil G. Gutierrez
+2:00 PM - Lecture and Hands-on (Engr. Maria Santos)
+4:30 PM - Closing Remarks
+
+Attendance:
+Juan Dela Cruz, BSCpE 1
+Maria Clara Reyes, BSCpE 1
+Jose Rizal Mercado, BSCpE 1

@@ -1,0 +1,134 @@
+{
+  "id": "post_activity_report",
+  "name": "Post-Activity Report",
+  "office": "SDAO",
+  "description": "Report submitted to SDAO after an activity: event summary, attachments checklist and signatories.",
+  "file": "template.docx",
+  "output_name": "Post-Activity Report - {event_name}",
+  "fields": [
+    {
+      "id": "organization_name",
+      "label": "Name of the Organization",
+      "type": "text",
+      "required": true,
+      "default": "{organization.name}"
+    },
+    {
+      "id": "event_name",
+      "label": "Name of the Event",
+      "type": "text",
+      "required": true,
+      "hint": "Official title of the activity, as approved in the activity proposal."
+    },
+    {
+      "id": "event_date",
+      "label": "Date and time of the event",
+      "type": "text",
+      "required": true,
+      "in_document": false,
+      "hint": "Used to write the summary (the 'when')."
+    },
+    {
+      "id": "venue",
+      "label": "Venue",
+      "type": "text",
+      "required": true,
+      "in_document": false,
+      "hint": "Used to write the summary (the 'where'). Room, building, or online platform."
+    },
+    {
+      "id": "summary",
+      "label": "Summary/Highlights of the Event",
+      "type": "longtext",
+      "required": true,
+      "hint": "One to three formal paragraphs in past tense covering what happened, where, when, and who took part (speakers, participants, number of attendees), plus key highlights and outcomes."
+    },
+    {
+      "id": "invitation",
+      "label": "Invitation",
+      "type": "images",
+      "attachment": true,
+      "annex_title": "Invitation",
+      "hint": "Photo or scan of the invitation letter(s) sent to speakers or guests."
+    },
+    {
+      "id": "program_flow",
+      "label": "Program flow",
+      "type": "table",
+      "attachment": true,
+      "annex_title": "Program Flow",
+      "columns": [
+        "Time",
+        "Activity",
+        "Person In-Charge"
+      ],
+      "hint": "Order of the program with times."
+    },
+    {
+      "id": "committee_members",
+      "label": "Committee Members",
+      "type": "table",
+      "attachment": true,
+      "annex_title": "Committee Members",
+      "columns": [
+        "Name",
+        "Committee / Role"
+      ],
+      "hint": "Officers and members who handled the event and their roles."
+    },
+    {
+      "id": "publicity_materials",
+      "label": "Publicity Materials",
+      "type": "images",
+      "attachment": true,
+      "annex_title": "Publicity Materials",
+      "hint": "Pubmats, posters, or screenshots of social media posts."
+    },
+    {
+      "id": "pictures",
+      "label": "Pictures with short description or narration",
+      "type": "images",
+      "attachment": true,
+      "annex_title": "Documentation",
+      "caption_required": true,
+      "hint": "Event photos, each with a one-sentence description of what is happening."
+    },
+    {
+      "id": "liquidation_form",
+      "label": "Liquidation Form",
+      "type": "images",
+      "attachment": true,
+      "annex_title": "Liquidation Form",
+      "hint": "Scan of the accomplished liquidation form and receipts, if the event had a budget."
+    },
+    {
+      "id": "attendance",
+      "label": "List of Attendance",
+      "type": "table",
+      "attachment": true,
+      "annex_title": "List of Attendance",
+      "columns": [
+        "Name",
+        "Program & Year"
+      ],
+      "numbered": true,
+      "hint": "Names of attendees. A photo of the signed attendance sheet can be transcribed."
+    },
+    {
+      "id": "evaluation",
+      "label": "Evaluation",
+      "type": "longtext",
+      "attachment": true,
+      "annex_title": "Evaluation",
+      "hint": "Summary of evaluation results: number of respondents, average ratings, notable comments, and recommendations."
+    }
+  ],
+  "signatories": {
+    "president": "President",
+    "secretary": "Secretary",
+    "adviser_1": "RSO Adviser #1",
+    "adviser_2": "RSO Adviser #2",
+    "program_chair": "Program Chair/Supervisor of the Unit",
+    "dean": "School Dean/Director or Head of the Unit"
+  }
+}

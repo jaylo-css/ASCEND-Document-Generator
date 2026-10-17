@@ -1,0 +1,13 @@
+# Render blueprint: https://render.com/docs/blueprint-spec
+# In Render: New > Blueprint > pick this repo. It asks for the two secret values below.
+services:
+  - type: web
+    name: ascend-docgen
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ASCEND_PASSWORD
+        sync: false

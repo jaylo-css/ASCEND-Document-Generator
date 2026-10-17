@@ -1,0 +1,15 @@
+{
+  "organization": {
+    "name": "Academic Society of Computer Engineering Discipline (ASCEnD)",
+    "short_name": "ASCEnD",
+    "school": "NU Fairview, School of Engineering and Technology"
+  },
+  "signatories": {
+    "president": "[PRESIDENT NAME]",
+    "secretary": "[SECRETARY NAME]",
+    "adviser_1": "Engr. Jhamil G. Gutierrez, MSCpE",
+    "adviser_2": "Engr. Mary Jane F. Somao-i, MSCpE",
+    "program_chair": "Engr. Jhamil G. Gutierrez, MSCpE",
+    "dean": "Dr. Corazon B. Rebong, PCpE"
+  }
+}
